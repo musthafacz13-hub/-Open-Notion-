@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Goal, GoalStatus, GoalPriority, GoalSortOption, OverviewMetrics, Category } from '../../types';
 import { filterGoals, sortGoals, getAvailableCategories } from '../../utils/calculations';
 import { BucketListSummary } from './BucketListSummary';
@@ -42,6 +42,13 @@ export const BucketListScreen: React.FC<BucketListScreenProps> = ({
   const [categoryFilter, setCategoryFilter] = useState<string>(initialCategoryFilter || 'All');
   const [priorityFilter, setPriorityFilter] = useState<'All' | GoalPriority>('All');
   const [sortOption, setSortOption] = useState<GoalSortOption>('recently-updated');
+
+  // Keep category filter in sync if navigated with a specific category
+  useEffect(() => {
+    if (initialCategoryFilter !== undefined) {
+      setCategoryFilter(initialCategoryFilter);
+    }
+  }, [initialCategoryFilter]);
 
   // Compute available categories from goals & defined categories
   const availableCategories = useMemo(

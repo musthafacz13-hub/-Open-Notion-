@@ -20,11 +20,15 @@ export const CategoryDeleteModal: React.FC<CategoryDeleteModalProps> = ({
   associatedNotesCount,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const previouslyFocusedElementRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       previouslyFocusedElementRef.current = document.activeElement as HTMLElement | null;
+      setTimeout(() => {
+        cancelButtonRef.current?.focus();
+      }, 50);
     } else if (previouslyFocusedElementRef.current) {
       previouslyFocusedElementRef.current.focus();
     }
@@ -152,9 +156,10 @@ export const CategoryDeleteModal: React.FC<CategoryDeleteModalProps> = ({
         {/* Actions */}
         <div className="flex items-center justify-end gap-2.5 px-6 py-4 border-t border-[#E8E8EE] bg-[#FAFAFC]">
           <button
+            ref={cancelButtonRef}
             type="button"
             onClick={onClose}
-            className="px-3.5 py-2 text-xs font-medium text-[#646477] hover:text-[#191927] hover:bg-[#F3F3F7] rounded-lg transition-colors min-h-[38px]"
+            className="px-3.5 py-2 text-xs font-medium text-[#646477] hover:text-[#191927] hover:bg-[#F3F3F7] rounded-lg transition-colors min-h-[38px] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#191927]"
           >
             Cancel
           </button>

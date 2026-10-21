@@ -34,19 +34,32 @@ export function getCategoryAccentColor(category: string): string {
 }
 
 export const CategoryTag: React.FC<CategoryTagProps> = ({ category, color, className = '' }) => {
-  const accentColor = color || getCategoryAccentColor(category);
+  const trimmed = category ? category.trim() : '';
+
+  if (!trimmed || trimmed.toLowerCase() === 'unassigned') {
+    return (
+      <span
+        className={`inline-flex items-center text-xs text-[#8E8EA0] italic ${className}`}
+        title="Unassigned category"
+      >
+        <span>Unassigned</span>
+      </span>
+    );
+  }
+
+  const accentColor = color || getCategoryAccentColor(trimmed);
 
   return (
     <span
       className={`inline-flex items-center gap-1.5 text-xs text-[#191927] font-medium ${className}`}
-      title={`Category: ${category}`}
+      title={`Category: ${trimmed}`}
     >
       <span
         className="w-1.5 h-1.5 rounded-full shrink-0 border border-[#191927]/15"
         style={{ backgroundColor: accentColor }}
         aria-hidden="true"
       />
-      <span>{category}</span>
+      <span>{trimmed}</span>
     </span>
   );
 };

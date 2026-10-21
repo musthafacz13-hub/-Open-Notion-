@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Goal, Note, NavigationItem, GoalPriority, GoalStatus } from './types';
+import { Goal, Note, Category, NavigationItem, GoalPriority, GoalStatus } from './types';
 import {
   calculateMetrics,
   getUpcomingGoals,
@@ -10,9 +10,12 @@ import {
   saveStoredGoals,
   loadStoredNotes,
   saveStoredNotes,
+  loadStoredCategories,
+  saveStoredCategories,
   clearWorkspaceData,
   getFixtureData,
 } from './utils/storage';
+import { parseYmdDate } from './utils/date';
 import { AppShell } from './components/layout/AppShell';
 import { DashboardScreen } from './components/dashboard/DashboardScreen';
 import { BucketListScreen } from './components/bucket/BucketListScreen';
@@ -24,6 +27,11 @@ import { NoteModal } from './components/notes/NoteModal';
 import { NoteDeleteModal } from './components/notes/NoteDeleteModal';
 import { NoteDetailModal } from './components/notes/NoteDetailModal';
 import { NotesScreen } from './components/notes/NotesScreen';
+import { CategoriesScreen } from './components/categories/CategoriesScreen';
+import { CategoryModal } from './components/categories/CategoryModal';
+import { CategoryDetailModal } from './components/categories/CategoryDetailModal';
+import { CategoryDeleteModal } from './components/categories/CategoryDeleteModal';
+import { CalendarScreen } from './components/calendar/CalendarScreen';
 import { Toast, ToastMessage } from './components/common/Toast';
 
 export default function App() {
@@ -34,10 +42,16 @@ export default function App() {
   // Primary Workspace Data
   const [goals, setGoals] = useState<Goal[]>(() => loadStoredGoals());
   const [notes, setNotes] = useState<Note[]>(() => loadStoredNotes());
+  const [categories, setCategories] = useState<Category[]>(() => loadStoredCategories());
+
+  // Deep-linking Category filter for navigation
+  const [goalCategoryFilter, setGoalCategoryFilter] = useState<string>('All');
+  const [noteCategoryFilter, setNoteCategoryFilter] = useState<string>('All');
 
   // Modal States
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [goalInitialTargetDate, setGoalInitialTargetDate] = useState<string | null>(null);
 
   const [isGoalDetailModalOpen, setIsGoalDetailModalOpen] = useState(false);
   const [detailGoal, setDetailGoal] = useState<Goal | null>(null);
@@ -53,6 +67,16 @@ export default function App() {
 
   const [isNoteDeleteModalOpen, setIsNoteDeleteModalOpen] = useState(false);
   const [deletingNote, setDeletingNote] = useState<Note | null>(null);
+
+  // Category Modal States
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+
+  const [isCategoryDetailModalOpen, setIsCategoryDetailModalOpen] = useState(false);
+  const [detailCategory, setDetailCategory] = useState<Category | null>(null);
+
+  const [isCategoryDeleteModalOpen, setIsCategoryDeleteModalOpen] = useState(false);
+  const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
 
   // Transient Toast Notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -78,20 +102,36 @@ export default function App() {
     saveStoredNotes(notes);
   }, [notes]);
 
+  useEffect(() => {
+    saveStoredCategories(categories);
+  }, [categories]);
+
   // Derived Metrics & Collections
   const metrics = useMemo(() => calculateMetrics(goals), [goals]);
   const upcomingGoals = useMemo(() => getUpcomingGoals(goals), [goals]);
   const recentGoals = useMemo(() => sortRecentlyUpdated(goals), [goals]);
   const recentNotes = useMemo(() => sortRecentlyUpdated(notes), [notes]);
+  const scheduledGoalCount = useMemo(
+    () => goals.filter((g) => Boolean(g.targetDate && g.targetDate.trim() && parseYmdDate(g.targetDate))).length,
+    [goals]
+  );
 
   // Goal Actions
   const handleOpenNewGoal = () => {
     setEditingGoal(null);
+    setGoalInitialTargetDate(null);
     setIsGoalModalOpen(true);
   };
 
   const handleOpenEditGoal = (goal: Goal) => {
     setEditingGoal(goal);
+    setGoalInitialTargetDate(null);
+    setIsGoalModalOpen(true);
+  };
+
+  const handleNewGoalForDate = (dateYmd: string) => {
+    setEditingGoal(null);
+    setGoalInitialTargetDate(dateYmd);
     setIsGoalModalOpen(true);
   };
 
@@ -104,6 +144,7 @@ export default function App() {
     title: string;
     description: string;
     category: string;
+    categoryId?: string | null;
     priority: GoalPriority;
     status: GoalStatus;
     targetDate: string | null;
@@ -115,6 +156,10 @@ export default function App() {
       const updatedGoal: Goal = {
         ...editingGoal,
         ...goalData,
+        categoryId:
+          goalData.categoryId !== undefined
+            ? goalData.categoryId
+            : editingGoal.categoryId || null,
         updatedAt: now,
       };
 
@@ -133,6 +178,7 @@ export default function App() {
       const newGoal: Goal = {
         id: 'goal_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
         ...goalData,
+        categoryId: goalData.categoryId || null,
         createdAt: now,
         updatedAt: now,
       };
@@ -242,6 +288,8 @@ export default function App() {
     content: string;
     isFavorite: boolean;
     linkedGoalId?: string | null;
+    categoryId?: string | null;
+    category?: string | null;
   }): Note => {
     const now = new Date().toISOString();
     const targetId = noteData.id || editingNote?.id;
@@ -257,6 +305,14 @@ export default function App() {
           noteData.linkedGoalId !== undefined
             ? noteData.linkedGoalId
             : existing?.linkedGoalId || null,
+        categoryId:
+          noteData.categoryId !== undefined
+            ? noteData.categoryId
+            : existing?.categoryId || null,
+        category:
+          noteData.category !== undefined
+            ? noteData.category
+            : existing?.category || null,
         createdAt: existing?.createdAt || now,
         updatedAt: now,
         tags: existing?.tags || [],
@@ -277,6 +333,8 @@ export default function App() {
         content: noteData.content,
         isFavorite: noteData.isFavorite,
         linkedGoalId: noteData.linkedGoalId || null,
+        categoryId: noteData.categoryId || null,
+        category: noteData.category || null,
         createdAt: now,
         updatedAt: now,
         tags: [],
@@ -324,11 +382,263 @@ export default function App() {
     addToast(`Deleted note "${title}"`, 'info');
   };
 
+  // Category Actions
+  const handleOpenNewCategory = () => {
+    setEditingCategory(null);
+    setIsCategoryModalOpen(true);
+  };
+
+  const handleOpenEditCategory = (category: Category) => {
+    setEditingCategory(category);
+    setIsCategoryModalOpen(true);
+  };
+
+  const handleOpenDetailCategory = (category: Category) => {
+    setDetailCategory(category);
+    setIsCategoryDetailModalOpen(true);
+  };
+
+  const handlePromptDeleteCategory = (category: Category) => {
+    setDeletingCategory(category);
+    setIsCategoryDeleteModalOpen(true);
+  };
+
+  const handleConfirmDeleteCategory = () => {
+    if (!deletingCategory) return;
+    const catToDelete = deletingCategory;
+    const catNameLower = catToDelete.name.toLowerCase().trim();
+
+    // 1. Remove category from categories collection
+    setCategories((prev) => prev.filter((c) => c.id !== catToDelete.id));
+
+    // 2. Clear category association from goals without deleting the goal
+    setGoals((prev) =>
+      prev.map((g) => {
+        if (
+          g.categoryId === catToDelete.id ||
+          (g.category && g.category.toLowerCase().trim() === catNameLower)
+        ) {
+          return {
+            ...g,
+            categoryId: null,
+            category: '',
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return g;
+      })
+    );
+
+    // 3. Clear category association from notes without deleting the note
+    setNotes((prev) =>
+      prev.map((n) => {
+        if (
+          n.categoryId === catToDelete.id ||
+          (n.category && n.category.toLowerCase().trim() === catNameLower)
+        ) {
+          return {
+            ...n,
+            categoryId: null,
+            category: null,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return n;
+      })
+    );
+
+    // Keep active detail views synchronized if open
+    if (
+      detailGoal &&
+      (detailGoal.categoryId === catToDelete.id ||
+        (detailGoal.category && detailGoal.category.toLowerCase().trim() === catNameLower))
+    ) {
+      setDetailGoal({
+        ...detailGoal,
+        categoryId: null,
+        category: '',
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    if (
+      detailNote &&
+      (detailNote.categoryId === catToDelete.id ||
+        (detailNote.category && detailNote.category.toLowerCase().trim() === catNameLower))
+    ) {
+      setDetailNote({
+        ...detailNote,
+        categoryId: null,
+        category: null,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    // Reset active category filters if pointing to the deleted category
+    if (goalCategoryFilter.toLowerCase().trim() === catNameLower) {
+      setGoalCategoryFilter('All');
+    }
+    if (noteCategoryFilter.toLowerCase().trim() === catNameLower) {
+      setNoteCategoryFilter('All');
+    }
+
+    if (detailCategory && detailCategory.id === catToDelete.id) {
+      setDetailCategory(null);
+      setIsCategoryDetailModalOpen(false);
+    }
+
+    setDeletingCategory(null);
+    setIsCategoryDeleteModalOpen(false);
+    addToast(`Deleted category "${catToDelete.name}"`, 'info');
+  };
+
+  const handleSaveCategory = (categoryData: {
+    id?: string;
+    name: string;
+    color: string;
+  }) => {
+    const now = new Date().toISOString();
+    const trimmedName = categoryData.name.trim();
+
+    if (categoryData.id) {
+      const targetId = categoryData.id;
+      const prevCat = categories.find((c) => c.id === targetId);
+      const oldNameLower = prevCat ? prevCat.name.toLowerCase().trim() : '';
+
+      const updatedCat: Category = {
+        id: targetId,
+        name: trimmedName,
+        color: categoryData.color,
+        createdAt: prevCat ? prevCat.createdAt : now,
+        updatedAt: now,
+      };
+
+      setCategories((prev) => prev.map((c) => (c.id === targetId ? updatedCat : c)));
+
+      // If category name changed, cascade update to associated goals and notes
+      if (oldNameLower && oldNameLower !== trimmedName.toLowerCase().trim()) {
+        setGoals((prev) =>
+          prev.map((g) => {
+            if (
+              g.categoryId === targetId ||
+              (g.category && g.category.toLowerCase().trim() === oldNameLower)
+            ) {
+              return {
+                ...g,
+                category: trimmedName,
+                categoryId: targetId,
+                updatedAt: now,
+              };
+            }
+            return g;
+          })
+        );
+
+        setNotes((prev) =>
+          prev.map((n) => {
+            if (
+              n.categoryId === targetId ||
+              (n.category && n.category.toLowerCase().trim() === oldNameLower)
+            ) {
+              return {
+                ...n,
+                category: trimmedName,
+                categoryId: targetId,
+                updatedAt: now,
+              };
+            }
+            return n;
+          })
+        );
+
+        // Keep active detail views in sync
+        if (
+          detailGoal &&
+          (detailGoal.categoryId === targetId ||
+            (detailGoal.category && detailGoal.category.toLowerCase().trim() === oldNameLower))
+        ) {
+          setDetailGoal({
+            ...detailGoal,
+            category: trimmedName,
+            categoryId: targetId,
+            updatedAt: now,
+          });
+        }
+
+        if (
+          detailNote &&
+          (detailNote.categoryId === targetId ||
+            (detailNote.category && detailNote.category.toLowerCase().trim() === oldNameLower))
+        ) {
+          setDetailNote({
+            ...detailNote,
+            category: trimmedName,
+            categoryId: targetId,
+            updatedAt: now,
+          });
+        }
+
+        // Update active screen filters to new name
+        if (goalCategoryFilter.toLowerCase().trim() === oldNameLower) {
+          setGoalCategoryFilter(trimmedName);
+        }
+        if (noteCategoryFilter.toLowerCase().trim() === oldNameLower) {
+          setNoteCategoryFilter(trimmedName);
+        }
+      }
+
+      if (detailCategory && detailCategory.id === targetId) {
+        setDetailCategory(updatedCat);
+      }
+
+      addToast(`Updated category "${trimmedName}"`);
+    } else {
+      const newCat: Category = {
+        id: 'cat_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+        name: trimmedName,
+        color: categoryData.color,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      setCategories((prev) => [newCat, ...prev]);
+      addToast(`Created category "${trimmedName}"`);
+    }
+  };
+
+  const handleNavigateGoalsWithCategory = (categoryName: string) => {
+    setGoalCategoryFilter(categoryName);
+    setCurrentTab('bucket-list');
+  };
+
+  const handleNavigateNotesWithCategory = (categoryName: string) => {
+    setNoteCategoryFilter(categoryName);
+    setCurrentTab('notes');
+  };
+
+  // Associated counts for deletingCategory
+  const deletingCategoryCounts = useMemo(() => {
+    if (!deletingCategory) return { goalCount: 0, noteCount: 0 };
+    const catNameLower = deletingCategory.name.toLowerCase().trim();
+    const goalCount = goals.filter(
+      (g) =>
+        g.categoryId === deletingCategory.id ||
+        (g.category && g.category.toLowerCase().trim() === catNameLower)
+    ).length;
+    const noteCount = notes.filter(
+      (n) =>
+        n.categoryId === deletingCategory.id ||
+        (n.category && n.category.toLowerCase().trim() === catNameLower)
+    ).length;
+    return { goalCount, noteCount };
+  }, [deletingCategory, goals, notes]);
+
   // Developer / Fixture Controls
   const handleLoadFixtures = () => {
     const fixtures = getFixtureData();
     setGoals(fixtures.goals);
     setNotes(fixtures.notes);
+    setCategories(fixtures.categories);
     addToast('Loaded development sample fixtures', 'info');
   };
 
@@ -336,10 +646,13 @@ export default function App() {
     clearWorkspaceData();
     setGoals([]);
     setNotes([]);
+    setCategories([]);
     setDetailGoal(null);
     setIsGoalDetailModalOpen(false);
     setDetailNote(null);
     setIsNoteDetailModalOpen(false);
+    setDetailCategory(null);
+    setIsCategoryDetailModalOpen(false);
     addToast('Cleared workspace data', 'info');
   };
 
@@ -353,6 +666,8 @@ export default function App() {
       onNewNote={handleOpenNewNote}
       goalCount={goals.length}
       noteCount={notes.length}
+      categoryCount={categories.length}
+      scheduledGoalCount={scheduledGoalCount}
       onLoadFixtures={handleLoadFixtures}
       onClearData={handleClearWorkspace}
     >
@@ -388,11 +703,15 @@ export default function App() {
           onEditGoal={handleOpenEditGoal}
           onToggleComplete={handleToggleCompleteGoal}
           onDeleteGoal={handlePromptDeleteGoal}
+          categories={categories}
+          initialCategoryFilter={goalCategoryFilter}
         />
       ) : currentTab === 'notes' ? (
         <NotesScreen
           notes={notes}
           goals={goals}
+          categories={categories}
+          initialCategoryFilter={noteCategoryFilter}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onNewNote={handleOpenNewNote}
@@ -401,6 +720,27 @@ export default function App() {
           onToggleFavorite={handleToggleFavoriteNote}
           onSaveNote={handleSaveNote}
           onOpenDetails={handleOpenDetailNote}
+        />
+      ) : currentTab === 'categories' ? (
+        <CategoriesScreen
+          categories={categories}
+          goals={goals}
+          notes={notes}
+          onNewCategory={handleOpenNewCategory}
+          onEditCategory={handleOpenEditCategory}
+          onDeleteCategory={handlePromptDeleteCategory}
+          onOpenDetails={handleOpenDetailCategory}
+          onNavigateGoalsWithCategory={handleNavigateGoalsWithCategory}
+          onNavigateNotesWithCategory={handleNavigateNotesWithCategory}
+        />
+      ) : currentTab === 'calendar' ? (
+        <CalendarScreen
+          goals={goals}
+          categories={categories}
+          onOpenGoalDetails={handleOpenDetailGoal}
+          onEditGoal={handleOpenEditGoal}
+          onToggleCompleteGoal={handleToggleCompleteGoal}
+          onNewGoalForDate={handleNewGoalForDate}
         />
       ) : (
         <ComingSoonView
@@ -416,9 +756,18 @@ export default function App() {
       {/* Goal Creation / Edit Dialog */}
       <GoalModal
         isOpen={isGoalModalOpen}
-        onClose={() => setIsGoalModalOpen(false)}
+        onClose={() => {
+          setIsGoalModalOpen(false);
+          setGoalInitialTargetDate(null);
+        }}
         onSave={handleSaveGoal}
         initialGoal={editingGoal}
+        initialTargetDate={goalInitialTargetDate}
+        categories={categories}
+        onOpenManageCategories={() => {
+          setIsGoalModalOpen(false);
+          setCurrentTab('categories');
+        }}
       />
 
       {/* Goal Detail View Dialog */}
@@ -426,6 +775,7 @@ export default function App() {
         isOpen={isGoalDetailModalOpen}
         onClose={() => setIsGoalDetailModalOpen(false)}
         goal={detailGoal}
+        categories={categories}
         onEdit={(goal) => {
           setIsGoalDetailModalOpen(false);
           handleOpenEditGoal(goal);
@@ -452,6 +802,7 @@ export default function App() {
         onSave={handleSaveNote}
         initialNote={editingNote}
         goals={goals}
+        categories={categories}
       />
 
       {/* Note Detail View Dialog */}
@@ -477,6 +828,39 @@ export default function App() {
         onClose={() => setIsNoteDeleteModalOpen(false)}
         onConfirm={handleConfirmDeleteNote}
         note={deletingNote}
+      />
+
+      {/* Category Creation / Edit Dialog */}
+      <CategoryModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        onSave={handleSaveCategory}
+        initialCategory={editingCategory}
+        existingCategories={categories}
+      />
+
+      {/* Category Detail View Dialog */}
+      <CategoryDetailModal
+        isOpen={isCategoryDetailModalOpen}
+        onClose={() => setIsCategoryDetailModalOpen(false)}
+        category={detailCategory}
+        goals={goals}
+        notes={notes}
+        onEditCategory={handleOpenEditCategory}
+        onNavigateGoalsWithCategory={handleNavigateGoalsWithCategory}
+        onNavigateNotesWithCategory={handleNavigateNotesWithCategory}
+        onOpenGoalDetails={handleOpenDetailGoal}
+        onOpenNoteDetails={handleOpenDetailNote}
+      />
+
+      {/* Category Delete Confirmation Dialog */}
+      <CategoryDeleteModal
+        isOpen={isCategoryDeleteModalOpen}
+        onClose={() => setIsCategoryDeleteModalOpen(false)}
+        onConfirm={handleConfirmDeleteCategory}
+        category={deletingCategory}
+        associatedGoalsCount={deletingCategoryCounts.goalCount}
+        associatedNotesCount={deletingCategoryCounts.noteCount}
       />
 
       {/* Toast Notifications */}

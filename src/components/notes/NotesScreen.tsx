@@ -57,6 +57,13 @@ export const NotesScreen: React.FC<NotesScreenProps> = ({
   const [sortOption, setSortOption] = useState<NoteSortOption>('recently-updated');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
+  // Keep category filter in sync if navigated with a specific category
+  React.useEffect(() => {
+    if (initialCategoryFilter !== undefined) {
+      setCategoryFilter(initialCategoryFilter);
+    }
+  }, [initialCategoryFilter]);
+
   // Dedicated Editor mode state
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [activeEditorNote, setActiveEditorNote] = useState<Note | null>(null);

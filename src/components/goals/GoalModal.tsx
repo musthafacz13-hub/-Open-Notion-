@@ -16,6 +16,7 @@ interface GoalModalProps {
     targetDate: string | null;
   }) => void;
   initialGoal?: Goal | null;
+  initialTargetDate?: string | null;
   categories?: Category[];
   onOpenManageCategories?: () => void;
 }
@@ -25,6 +26,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
   onClose,
   onSave,
   initialGoal,
+  initialTargetDate,
   categories = [],
   onOpenManageCategories,
 }) => {
@@ -61,7 +63,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
         setCategory('');
         setPriority('Medium');
         setStatus('Not Started');
-        setTargetDate('');
+        setTargetDate(initialTargetDate || '');
       }
       setError(null);
       setTimeout(() => {
@@ -70,7 +72,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
     } else if (previouslyFocusedElementRef.current) {
       previouslyFocusedElementRef.current.focus();
     }
-  }, [isOpen, initialGoal]);
+  }, [isOpen, initialGoal, initialTargetDate]);
 
   // Keyboard accessibility: Escape to close and Tab focus trap
   useEffect(() => {

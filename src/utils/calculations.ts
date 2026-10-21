@@ -221,23 +221,34 @@ export function filterGoals(goals: Goal[], filters: GoalFilterOptions): Goal[] {
  * Extracts and deduplicates all categories present in the current goals and defined categories.
  */
 export function getAvailableCategories(goals: Goal[], categories: Category[] = []): string[] {
-  const set = new Set<string>();
+  const seenLower = new Set<string>();
+  const result: string[] = [];
 
   // Add defined categories first
   for (const c of categories) {
-    if (c.name && c.name.trim()) {
-      set.add(c.name.trim());
+    const trimmed = c.name?.trim();
+    if (trimmed && trimmed.toLowerCase() !== 'all' && trimmed.toLowerCase() !== 'unassigned') {
+      const lower = trimmed.toLowerCase();
+      if (!seenLower.has(lower)) {
+        seenLower.add(lower);
+        result.push(trimmed);
+      }
     }
   }
 
   // Add any existing goal categories
   for (const g of goals) {
-    if (g.category && g.category.trim()) {
-      set.add(g.category.trim());
+    const trimmed = g.category?.trim();
+    if (trimmed && trimmed.toLowerCase() !== 'all' && trimmed.toLowerCase() !== 'unassigned') {
+      const lower = trimmed.toLowerCase();
+      if (!seenLower.has(lower)) {
+        seenLower.add(lower);
+        result.push(trimmed);
+      }
     }
   }
 
-  return Array.from(set).sort((a, b) => a.localeCompare(b));
+  return result.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 }
 
 /**

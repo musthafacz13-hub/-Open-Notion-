@@ -185,14 +185,26 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
                 {associatedGoals.map((goal) => (
                   <div
                     key={goal.id}
+                    role={onOpenGoalDetails ? 'button' : undefined}
+                    tabIndex={onOpenGoalDetails ? 0 : undefined}
+                    aria-label={onOpenGoalDetails ? `View goal "${goal.title}"` : undefined}
                     onClick={() => {
                       if (onOpenGoalDetails) {
                         onClose();
                         onOpenGoalDetails(goal);
                       }
                     }}
+                    onKeyDown={(e) => {
+                      if (onOpenGoalDetails && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault();
+                        onClose();
+                        onOpenGoalDetails(goal);
+                      }
+                    }}
                     className={`p-3 rounded-lg border border-[#E8E8EE] bg-white hover:border-[#191927]/30 transition-all flex items-center justify-between gap-3 ${
-                      onOpenGoalDetails ? 'cursor-pointer' : ''
+                      onOpenGoalDetails
+                        ? 'cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#191927]'
+                        : ''
                     }`}
                   >
                     <div className="min-w-0 flex-1">
@@ -261,14 +273,26 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
                 {associatedNotes.map((note) => (
                   <div
                     key={note.id}
+                    role={onOpenNoteDetails ? 'button' : undefined}
+                    tabIndex={onOpenNoteDetails ? 0 : undefined}
+                    aria-label={onOpenNoteDetails ? `View note "${note.title}"` : undefined}
                     onClick={() => {
                       if (onOpenNoteDetails) {
                         onClose();
                         onOpenNoteDetails(note);
                       }
                     }}
+                    onKeyDown={(e) => {
+                      if (onOpenNoteDetails && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault();
+                        onClose();
+                        onOpenNoteDetails(note);
+                      }
+                    }}
                     className={`p-3 rounded-lg border border-[#E8E8EE] bg-white hover:border-[#191927]/30 transition-all flex items-center justify-between gap-3 ${
-                      onOpenNoteDetails ? 'cursor-pointer' : ''
+                      onOpenNoteDetails
+                        ? 'cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#191927]'
+                        : ''
                     }`}
                   >
                     <div className="min-w-0 flex-1">

@@ -143,15 +143,47 @@ export const CategoriesScreen: React.FC<CategoriesScreenProps> = ({
             <span className="text-xs font-medium">Unassigned</span>
             <span className="w-2 h-2 rounded-full bg-[#8E8EA0]" aria-hidden="true" />
           </div>
-          <div className="text-xs text-[#646477]">
-            <span className="font-semibold text-[#191927] tabular-nums">
-              {unassigned.goalCount}
-            </span>{' '}
-            goals,{' '}
-            <span className="font-semibold text-[#191927] tabular-nums">
-              {unassigned.noteCount}
-            </span>{' '}
-            notes
+          <div className="text-xs text-[#646477] space-y-1">
+            <div>
+              <span className="font-semibold text-[#191927] tabular-nums">
+                {unassigned.goalCount}
+              </span>{' '}
+              goals,{' '}
+              <span className="font-semibold text-[#191927] tabular-nums">
+                {unassigned.noteCount}
+              </span>{' '}
+              notes
+            </div>
+            {(unassigned.goalCount > 0 || unassigned.noteCount > 0) && (
+              <div className="flex items-center gap-1.5 text-[11px] text-[#646477] pt-0.5">
+                <span className="text-[#8E8EA0]">View:</span>
+                {unassigned.goalCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigateGoalsWithCategory('Unassigned')}
+                    className="hover:text-[#191927] hover:underline"
+                    aria-label="Filter unassigned goals in Bucket List"
+                  >
+                    Goals
+                  </button>
+                )}
+                {unassigned.goalCount > 0 && unassigned.noteCount > 0 && (
+                  <span aria-hidden="true" className="text-[#D0D0DC]">
+                    ·
+                  </span>
+                )}
+                {unassigned.noteCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigateNotesWithCategory('Unassigned')}
+                    className="hover:text-[#191927] hover:underline"
+                    aria-label="Filter unassigned notes"
+                  >
+                    Notes
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -236,7 +268,7 @@ export const CategoriesScreen: React.FC<CategoriesScreenProps> = ({
                         key={cat.id}
                         tabIndex={0}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
+                          if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
                             e.preventDefault();
                             onOpenDetails(cat);
                           }

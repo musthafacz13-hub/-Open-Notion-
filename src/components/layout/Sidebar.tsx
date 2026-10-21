@@ -17,6 +17,8 @@ interface SidebarProps {
   onSelectTab: (tab: NavigationItem) => void;
   goalCount: number;
   noteCount: number;
+  categoryCount?: number;
+  scheduledGoalCount?: number;
   onLoadFixtures: () => void;
   onClearData: () => void;
 }
@@ -26,6 +28,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectTab,
   goalCount,
   noteCount,
+  categoryCount,
+  scheduledGoalCount,
   onLoadFixtures,
   onClearData,
 }) => {
@@ -51,11 +55,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'categories' as NavigationItem,
       label: 'Categories',
       icon: Tag,
+      badge: categoryCount !== undefined && categoryCount > 0 ? categoryCount : undefined,
     },
     {
       id: 'calendar' as NavigationItem,
       label: 'Calendar',
       icon: Calendar,
+      badge: scheduledGoalCount !== undefined && scheduledGoalCount > 0 ? scheduledGoalCount : undefined,
     },
     {
       id: 'analytics' as NavigationItem,

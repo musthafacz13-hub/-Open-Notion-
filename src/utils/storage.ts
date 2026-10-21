@@ -1,5 +1,6 @@
 import { Goal, Note, Category, GoalPriority, GoalStatus } from '../types';
 import { SAMPLE_GOALS, SAMPLE_NOTES, SAMPLE_CATEGORIES } from '../data/fixtures';
+import { parseYmdDate } from './date';
 
 const GOALS_KEY = 'bucket_goals_v1';
 const NOTES_KEY = 'bucket_notes_v1';
@@ -21,16 +22,24 @@ export function sanitizeCategory(raw: unknown): Category | null {
   const c = raw as Record<string, unknown>;
 
   if (typeof c.name !== 'string' || !c.name.trim()) return null;
+  const name = c.name.trim();
+
+  // Reject reserved names from corrupted storage
+  const lowerName = name.toLowerCase();
+  if (lowerName === 'all' || lowerName === 'unassigned') {
+    return null;
+  }
 
   const id =
     typeof c.id === 'string' && c.id.trim()
       ? c.id.trim()
       : `cat_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
-  const name = c.name.trim();
+
   const color =
-    typeof c.color === 'string' && c.color.trim().startsWith('#')
+    typeof c.color === 'string' && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(c.color.trim())
       ? c.color.trim()
       : DEFAULT_CATEGORY_COLOR;
+
   const createdAt = isValidIsoDate(c.createdAt) ? (c.createdAt as string) : new Date().toISOString();
   const updatedAt = isValidIsoDate(c.updatedAt) ? (c.updatedAt as string) : createdAt;
 
@@ -56,7 +65,12 @@ function sanitizeGoal(raw: unknown): Goal | null {
       : `goal_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
   const title = g.title.trim();
   const description = typeof g.description === 'string' ? g.description : '';
-  const category = typeof g.category === 'string' && g.category.trim() ? g.category.trim() : 'Personal';
+  const category =
+    typeof g.category === 'string'
+      ? g.category.trim()
+      : g.category === undefined
+      ? 'Personal'
+      : '';
   const categoryId =
     typeof g.categoryId === 'string' && g.categoryId.trim() ? g.categoryId.trim() : null;
   const priority: GoalPriority = VALID_PRIORITIES.includes(g.priority as GoalPriority)
@@ -65,7 +79,10 @@ function sanitizeGoal(raw: unknown): Goal | null {
   const status: GoalStatus = VALID_STATUSES.includes(g.status as GoalStatus)
     ? (g.status as GoalStatus)
     : 'Not Started';
-  const targetDate = isValidIsoDate(g.targetDate) ? (g.targetDate as string).trim() : null;
+  const targetDate =
+    typeof g.targetDate === 'string' && parseYmdDate(g.targetDate)
+      ? (g.targetDate as string).trim()
+      : null;
   const createdAt = isValidIsoDate(g.createdAt) ? (g.createdAt as string) : new Date().toISOString();
   const updatedAt = isValidIsoDate(g.updatedAt) ? (g.updatedAt as string) : createdAt;
 

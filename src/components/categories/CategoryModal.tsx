@@ -110,7 +110,14 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
       return;
     }
 
-    // Check duplicate name (case-insensitive) excluding self
+    const reserved = ['all', 'unassigned'];
+    if (reserved.includes(trimmed.toLowerCase())) {
+      setError(`"${trimmed}" is a reserved filter name. Please choose another category name.`);
+      nameInputRef.current?.focus();
+      return;
+    }
+
+    // Check duplicate name (case-insensitive and whitespace-trimmed) excluding self
     const isDuplicate = existingCategories.some(
       (c) =>
         c.name.toLowerCase().trim() === trimmed.toLowerCase() &&
@@ -123,10 +130,15 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
       return;
     }
 
+    const safeColor =
+      typeof color === 'string' && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(color.trim())
+        ? color.trim()
+        : APPROVED_CATEGORY_COLORS[0].hex;
+
     onSave({
       id: initialCategory?.id,
       name: trimmed,
-      color,
+      color: safeColor,
     });
     onClose();
   };

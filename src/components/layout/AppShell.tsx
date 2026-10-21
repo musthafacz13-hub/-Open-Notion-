@@ -13,6 +13,8 @@ interface AppShellProps {
   onNewNote: () => void;
   goalCount: number;
   noteCount: number;
+  categoryCount?: number;
+  scheduledGoalCount?: number;
   onLoadFixtures: () => void;
   onClearData: () => void;
   children: React.ReactNode;
@@ -27,6 +29,8 @@ export const AppShell: React.FC<AppShellProps> = ({
   onNewNote,
   goalCount,
   noteCount,
+  categoryCount,
+  scheduledGoalCount,
   onLoadFixtures,
   onClearData,
   children,
@@ -39,6 +43,8 @@ export const AppShell: React.FC<AppShellProps> = ({
         onSelectTab={onSelectTab}
         goalCount={goalCount}
         noteCount={noteCount}
+        categoryCount={categoryCount}
+        scheduledGoalCount={scheduledGoalCount}
         onLoadFixtures={onLoadFixtures}
         onClearData={onClearData}
       />
