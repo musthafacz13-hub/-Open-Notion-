@@ -11,7 +11,9 @@ import {
   X,
   Search,
   Home,
+  LogOut,
 } from 'lucide-react';
+import { AuthUser } from '../../services/authService';
 
 interface MobileDrawerProps {
   isOpen: boolean;
@@ -25,6 +27,8 @@ interface MobileDrawerProps {
   onOpenGlobalSearch?: () => void;
   triggerRef?: React.RefObject<HTMLElement | null>;
   onNavigateToLanding?: () => void;
+  currentUser?: AuthUser | null;
+  onSignOut?: () => void;
 }
 
 export const MobileDrawer: React.FC<MobileDrawerProps> = ({
@@ -39,6 +43,8 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   onOpenGlobalSearch,
   triggerRef,
   onNavigateToLanding,
+  currentUser,
+  onSignOut,
 }) => {
   const drawerRef = useRef<HTMLDivElement>(null);
 
@@ -268,8 +274,43 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
             })}
           </nav>
 
-          {/* Return to Landing Page */}
-          {onNavigateToLanding && (
+          {/* User Account / Session Section */}
+          {currentUser ? (
+            <div className="px-3 pb-3">
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-[#FAFAFC] border border-[#E8E8EE]">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className="w-7 h-7 rounded-full bg-[#191927] text-white flex items-center justify-center text-xs font-bold shrink-0"
+                    aria-hidden="true"
+                  >
+                    {(currentUser.name || currentUser.email || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <div className="truncate text-left">
+                    <p className="text-xs font-semibold text-[#191927] truncate">
+                      {currentUser.name || currentUser.email}
+                    </p>
+                    {currentUser.name && (
+                      <p className="text-[10px] text-[#8E8EA0] truncate">{currentUser.email}</p>
+                    )}
+                  </div>
+                </div>
+                {onSignOut && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onSignOut();
+                    }}
+                    className="p-1.5 text-[#8E8EA0] hover:text-red-600 rounded transition-colors cursor-pointer shrink-0 ml-1"
+                    title="Sign out of Bucket"
+                    aria-label="Sign out"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : onNavigateToLanding ? (
             <div className="px-3 pb-3">
               <button
                 type="button"
@@ -286,7 +327,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                 <span className="text-[10px] text-[#8E8EA0]">Home</span>
               </button>
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* Drawer Footer */}

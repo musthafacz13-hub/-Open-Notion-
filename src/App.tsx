@@ -43,22 +43,48 @@ import { Toast, ToastMessage } from './components/common/Toast';
 import { LandingPage } from './components/landing/LandingPage';
 import { LoginPage } from './components/auth/LoginPage';
 import { VerificationPage } from './components/auth/VerificationPage';
+import { AuthPage } from './components/auth/AuthPage';
+import {
+  AuthUser,
+  getActiveSession,
+  subscribeToAuthChanges,
+  signOut as authSignOut,
+} from './services/authService';
 
-export type AppView = 'landing' | 'login' | 'verify' | 'app';
+export type AppView =
+  | 'landing'
+  | 'login'
+  | 'signup'
+  | 'forgot-password'
+  | 'reset-password'
+  | 'verify'
+  | 'app';
 
 export default function App() {
   // Top-Level App View State (defaults to landing page on initial visit)
   const [appView, setAppView] = useState<AppView>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const viewParam = params.get('view');
-      if (viewParam === 'app' || viewParam === 'login' || viewParam === 'verify' || viewParam === 'landing') {
+      const viewParam = params.get('view') as AppView | null;
+      if (
+        viewParam &&
+        [
+          'app',
+          'login',
+          'signup',
+          'forgot-password',
+          'reset-password',
+          'verify',
+          'landing',
+        ].includes(viewParam)
+      ) {
         return viewParam;
       }
     }
     return 'landing';
   });
   const [authEmail, setAuthEmail] = useState<string>('');
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
 
   // Navigation State
   const [currentTab, setCurrentTab] = useState<NavigationItem>('dashboard');
@@ -145,6 +171,43 @@ export default function App() {
       return () => media.removeEventListener('change', handleChange);
     }
   }, [preferences]);
+
+  // Observe Supabase Authentication Session & State Changes
+  useEffect(() => {
+    let isMounted = true;
+
+    getActiveSession().then((session) => {
+      if (!isMounted) return;
+      if (session?.user) {
+        setCurrentUser(session.user);
+        // If an authenticated session exists and user is on an auth screen, advance to workspace
+        setAppView((prev) =>
+          prev === 'login' || prev === 'signup' || prev === 'forgot-password' ? 'app' : prev
+        );
+      }
+    });
+
+    const { unsubscribe } = subscribeToAuthChanges((session) => {
+      if (!isMounted) return;
+      if (session?.user) {
+        setCurrentUser(session.user);
+      } else {
+        setCurrentUser(null);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  const handleSignOut = async () => {
+    await authSignOut();
+    setCurrentUser(null);
+    setAppView('landing');
+    addToast('Signed out of Bucket', 'info');
+  };
 
   const handleUpdatePreferences = (updated: Partial<WorkspacePreferences>) => {
     setPreferences((prev) => {
@@ -787,24 +850,42 @@ export default function App() {
     );
   }
 
-  // Render Login View
-  if (appView === 'login') {
+  // Render Authentication Views (Login, Sign Up, Forgot Password, Reset Password)
+  if (
+    appView === 'login' ||
+    appView === 'signup' ||
+    appView === 'forgot-password' ||
+    appView === 'reset-password'
+  ) {
     return (
       <>
-        <LoginPage
-          onBackToLanding={() => setAppView('landing')}
-          onSubmitEmail={(email) => {
-            setAuthEmail(email);
-            setAppView('verify');
+        <AuthPage
+          initialView={
+            appView === 'signup'
+              ? 'signup'
+              : appView === 'forgot-password'
+              ? 'forgot-password'
+              : appView === 'reset-password'
+              ? 'reset-password'
+              : 'login'
+          }
+          onSuccess={(user) => {
+            setCurrentUser(user);
+            setAppView('app');
+            addToast(`Welcome, ${user.name || user.email}!`, 'success');
           }}
-          onEnterWorkspaceDirectly={() => setAppView('app')}
+          onBackToLanding={() => setAppView('landing')}
+          onContinueOffline={() => {
+            setAppView('app');
+            addToast('Exploring workspace in offline guest mode', 'info');
+          }}
         />
         <Toast toasts={toasts} onDismiss={dismissToast} />
       </>
     );
   }
 
-  // Render OTP / Magic Link Verification View
+  // Render OTP / Magic Link Verification View if directly requested
   if (appView === 'verify') {
     return (
       <>
@@ -839,6 +920,8 @@ export default function App() {
       onLoadFixtures={handleLoadFixtures}
       onClearData={handleClearWorkspace}
       onNavigateToLanding={() => setAppView('landing')}
+      currentUser={currentUser}
+      onSignOut={handleSignOut}
     >
       {currentTab === 'dashboard' ? (
         <DashboardScreen

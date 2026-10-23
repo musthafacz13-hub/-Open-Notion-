@@ -12,7 +12,10 @@ import {
   RotateCcw,
   Search,
   Home,
+  LogOut,
+  User as UserIcon,
 } from 'lucide-react';
+import { AuthUser } from '../../services/authService';
 
 interface SidebarProps {
   currentTab: NavigationItem;
@@ -25,6 +28,8 @@ interface SidebarProps {
   onLoadFixtures: () => void;
   onClearData: () => void;
   onNavigateToLanding?: () => void;
+  currentUser?: AuthUser | null;
+  onSignOut?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -38,6 +43,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLoadFixtures,
   onClearData,
   onNavigateToLanding,
+  currentUser,
+  onSignOut,
 }) => {
   const navItems = [
     {
@@ -173,8 +180,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </nav>
 
-      {/* Return to Landing Page */}
-      {onNavigateToLanding && (
+      {/* User Account / Session Section */}
+      {currentUser ? (
+        <div className="px-3 pb-2 pt-1 border-t border-[#F0F0F4]">
+          <div className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-[#FAFAFC] border border-[#E8E8EE]">
+            <div className="flex items-center gap-2 min-w-0">
+              <div
+                className="w-6 h-6 rounded-full bg-[#191927] text-white flex items-center justify-center text-[10px] font-bold shrink-0"
+                aria-hidden="true"
+              >
+                {(currentUser.name || currentUser.email || 'U').charAt(0).toUpperCase()}
+              </div>
+              <div className="truncate text-left">
+                <p className="text-xs font-semibold text-[#191927] truncate">
+                  {currentUser.name || currentUser.email}
+                </p>
+                {currentUser.name && (
+                  <p className="text-[10px] text-[#8E8EA0] truncate">{currentUser.email}</p>
+                )}
+              </div>
+            </div>
+            {onSignOut && (
+              <button
+                type="button"
+                onClick={onSignOut}
+                className="p-1 text-[#8E8EA0] hover:text-red-600 rounded transition-colors cursor-pointer shrink-0 ml-1"
+                title="Sign out of Bucket"
+                aria-label="Sign out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      ) : onNavigateToLanding ? (
         <div className="px-3 pb-2">
           <button
             type="button"
@@ -189,7 +228,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span className="text-[10px] text-[#8E8EA0] font-medium">Home</span>
           </button>
         </div>
-      )}
+      ) : null}
 
       {/* Developer / Interaction Fixtures Footer */}
       <div className="p-3 border-t border-[#E8E8EE] bg-[#FAFAFC] space-y-2">

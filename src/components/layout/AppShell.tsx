@@ -4,6 +4,8 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { MobileDrawer } from './MobileDrawer';
 
+import { AuthUser } from '../../services/authService';
+
 interface AppShellProps {
   currentTab: NavigationItem;
   onSelectTab: (tab: NavigationItem) => void;
@@ -19,6 +21,8 @@ interface AppShellProps {
   onLoadFixtures: () => void;
   onClearData: () => void;
   onNavigateToLanding?: () => void;
+  currentUser?: AuthUser | null;
+  onSignOut?: () => void;
   children: React.ReactNode;
 }
 
@@ -37,6 +41,8 @@ export const AppShell: React.FC<AppShellProps> = ({
   onLoadFixtures,
   onClearData,
   onNavigateToLanding,
+  currentUser,
+  onSignOut,
   children,
 }) => {
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
@@ -56,6 +62,8 @@ export const AppShell: React.FC<AppShellProps> = ({
         onLoadFixtures={onLoadFixtures}
         onClearData={onClearData}
         onNavigateToLanding={onNavigateToLanding}
+        currentUser={currentUser}
+        onSignOut={onSignOut}
       />
 
       {/* Main Workspace Canvas */}
@@ -95,6 +103,8 @@ export const AppShell: React.FC<AppShellProps> = ({
           onOpenGlobalSearch={onOpenGlobalSearch}
           triggerRef={drawerTriggerRef}
           onNavigateToLanding={onNavigateToLanding}
+          currentUser={currentUser}
+          onSignOut={onSignOut}
         />
       </div>
     </div>
