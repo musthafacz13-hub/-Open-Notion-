@@ -10,6 +10,7 @@ import {
   Settings,
   Database,
   RotateCcw,
+  Search,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -19,6 +20,7 @@ interface SidebarProps {
   noteCount: number;
   categoryCount?: number;
   scheduledGoalCount?: number;
+  onOpenGlobalSearch?: () => void;
   onLoadFixtures: () => void;
   onClearData: () => void;
 }
@@ -30,6 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   noteCount,
   categoryCount,
   scheduledGoalCount,
+  onOpenGlobalSearch,
   onLoadFixtures,
   onClearData,
 }) => {
@@ -114,6 +117,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Navigation Links */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto" aria-label="Main menu">
+        {onOpenGlobalSearch && (
+          <button
+            type="button"
+            onClick={onOpenGlobalSearch}
+            className="w-full flex items-center justify-between px-3 py-2 mb-2 rounded-lg text-xs font-medium text-[#646477] bg-[#FAFAFC] hover:bg-[#F3F3F7] hover:text-[#191927] border border-[#E8E8EE] transition-colors group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#191927]"
+            aria-label="Open search dialog (Press Command K)"
+          >
+            <div className="flex items-center gap-2">
+              <Search className="w-3.5 h-3.5 text-[#8E8EA0] group-hover:text-[#191927] transition-colors" />
+              <span>Search...</span>
+            </div>
+            <kbd className="text-[10px] text-[#8E8EA0] font-mono bg-white px-1.5 py-0.5 rounded border border-[#E8E8EE] shadow-2xs">
+              ⌘K
+            </kbd>
+          </button>
+        )}
+
         {navItems.map((item) => {
           const isActive = currentTab === item.id;
           const Icon = item.icon;

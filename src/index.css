@@ -22,6 +22,56 @@
   color-scheme: light;
 }
 
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+[data-theme="dark"] body {
+  background-color: #12121B !important;
+  color: #FAFAFC !important;
+}
+
+/* Dark mode theme overrides for consistent appearance */
+[data-theme="dark"] .bg-white {
+  background-color: #1A1A28 !important;
+}
+
+[data-theme="dark"] .bg-\[\#FAFAFC\] {
+  background-color: #12121B !important;
+}
+
+[data-theme="dark"] .bg-\[\#F3F3F7\] {
+  background-color: #222234 !important;
+}
+
+[data-theme="dark"] .hover\:bg-\[\#F3F3F7\]:hover {
+  background-color: #26263A !important;
+}
+
+[data-theme="dark"] .hover\:bg-\[\#FAFAFC\]:hover {
+  background-color: #1E1E2E !important;
+}
+
+[data-theme="dark"] .border-\[\#E8E8EE\] {
+  border-color: #2D2D40 !important;
+}
+
+[data-theme="dark"] .border-\[\#F0F0F4\] {
+  border-color: #26263A !important;
+}
+
+[data-theme="dark"] .text-\[\#191927\] {
+  color: #FAFAFC !important;
+}
+
+[data-theme="dark"] .text-\[\#646477\] {
+  color: #A0A0B5 !important;
+}
+
+[data-theme="dark"] .text-\[\#8E8EA0\] {
+  color: #7E7E94 !important;
+}
+
 body {
   margin: 0;
   padding: 0;

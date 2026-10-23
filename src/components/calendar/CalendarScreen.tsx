@@ -37,6 +37,7 @@ interface CalendarScreenProps {
   onEditGoal: (goal: Goal) => void;
   onToggleCompleteGoal: (goalId: string) => void;
   onNewGoalForDate: (dateYmd: string) => void;
+  initialViewMode?: CalendarViewMode;
 }
 
 const WEEKDAY_NAMES_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -50,11 +51,19 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
   onEditGoal,
   onToggleCompleteGoal,
   onNewGoalForDate,
+  initialViewMode = 'month',
 }) => {
   // Navigation & View States
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
-  const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(initialViewMode);
+
+  // Sync if preference changes
+  React.useEffect(() => {
+    if (initialViewMode) {
+      setViewMode(initialViewMode);
+    }
+  }, [initialViewMode]);
 
   // Filters within Calendar
   const [searchQuery, setSearchQuery] = useState('');

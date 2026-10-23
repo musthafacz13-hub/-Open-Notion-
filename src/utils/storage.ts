@@ -251,3 +251,98 @@ export function getFixtureData(): { goals: Goal[]; notes: Note[]; categories: Ca
     categories: SAMPLE_CATEGORIES,
   };
 }
+
+export type ThemeMode = 'light' | 'dark' | 'system';
+
+export interface WorkspacePreferences {
+  theme: ThemeMode;
+  defaultCalendarView: 'month' | 'week' | 'day';
+  defaultNotesView: 'grid' | 'list';
+}
+
+const PREFERENCES_KEY = 'bucket_preferences_v1';
+
+export const DEFAULT_PREFERENCES: WorkspacePreferences = {
+  theme: 'light',
+  defaultCalendarView: 'month',
+  defaultNotesView: 'grid',
+};
+
+export function loadStoredPreferences(): WorkspacePreferences {
+  if (typeof window === 'undefined') return DEFAULT_PREFERENCES;
+  try {
+    const raw = localStorage.getItem(PREFERENCES_KEY);
+    if (!raw) return DEFAULT_PREFERENCES;
+    const parsed = JSON.parse(raw);
+    return {
+      theme: ['light', 'dark', 'system'].includes(parsed.theme) ? parsed.theme : 'light',
+      defaultCalendarView: ['month', 'week', 'day'].includes(parsed.defaultCalendarView)
+        ? parsed.defaultCalendarView
+        : 'month',
+      defaultNotesView: ['grid', 'list'].includes(parsed.defaultNotesView)
+        ? parsed.defaultNotesView
+        : 'grid',
+    };
+  } catch (err) {
+    console.error('Failed to load preferences from localStorage:', err);
+    return DEFAULT_PREFERENCES;
+  }
+}
+
+export function saveStoredPreferences(prefs: WorkspacePreferences): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(PREFERENCES_KEY, JSON.stringify(prefs));
+  } catch (err) {
+    console.error('Failed to save preferences to localStorage:', err);
+  }
+}
+
+export function applyTheme(theme: ThemeMode): void {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  let resolved: 'light' | 'dark' = 'light';
+  if (theme === 'dark') {
+    resolved = 'dark';
+  } else if (theme === 'system') {
+    const isDark = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    resolved = isDark ? 'dark' : 'light';
+  }
+  root.setAttribute('data-theme', resolved);
+  if (resolved === 'dark') {
+    root.classList.add('dark');
+  } else {
+    root.classList.remove('dark');
+  }
+}
+
+export function getStorageUsageEstimate(): {
+  totalBytes: number;
+  formattedSize: string;
+  keysCount: number;
+} {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return { totalBytes: 0, formattedSize: '0 KB', keysCount: 0 };
+  }
+  try {
+    let bytes = 0;
+    let keysCount = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('bucket_')) {
+        keysCount++;
+        const val = localStorage.getItem(key) || '';
+        bytes += (key.length + val.length) * 2; // Approximate UTF-16 byte size
+      }
+    }
+    const kb = (bytes / 1024).toFixed(1);
+    return {
+      totalBytes: bytes,
+      formattedSize: `${kb} KB`,
+      keysCount,
+    };
+  } catch {
+    return { totalBytes: 0, formattedSize: '0 KB', keysCount: 0 };
+  }
+}
+

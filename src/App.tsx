@@ -14,6 +14,10 @@ import {
   saveStoredCategories,
   clearWorkspaceData,
   getFixtureData,
+  loadStoredPreferences,
+  saveStoredPreferences,
+  applyTheme,
+  WorkspacePreferences,
 } from './utils/storage';
 import { parseYmdDate } from './utils/date';
 import { AppShell } from './components/layout/AppShell';
@@ -32,6 +36,9 @@ import { CategoryModal } from './components/categories/CategoryModal';
 import { CategoryDetailModal } from './components/categories/CategoryDetailModal';
 import { CategoryDeleteModal } from './components/categories/CategoryDeleteModal';
 import { CalendarScreen } from './components/calendar/CalendarScreen';
+import { AnalyticsScreen } from './components/analytics/AnalyticsScreen';
+import { SettingsScreen } from './components/settings/SettingsScreen';
+import { GlobalSearchModal } from './components/search/GlobalSearchModal';
 import { Toast, ToastMessage } from './components/common/Toast';
 
 export default function App() {
@@ -43,12 +50,14 @@ export default function App() {
   const [goals, setGoals] = useState<Goal[]>(() => loadStoredGoals());
   const [notes, setNotes] = useState<Note[]>(() => loadStoredNotes());
   const [categories, setCategories] = useState<Category[]>(() => loadStoredCategories());
+  const [preferences, setPreferences] = useState<WorkspacePreferences>(() => loadStoredPreferences());
 
   // Deep-linking Category filter for navigation
   const [goalCategoryFilter, setGoalCategoryFilter] = useState<string>('All');
   const [noteCategoryFilter, setNoteCategoryFilter] = useState<string>('All');
 
   // Modal States
+  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [goalInitialTargetDate, setGoalInitialTargetDate] = useState<string | null>(null);
@@ -106,6 +115,29 @@ export default function App() {
     saveStoredCategories(categories);
   }, [categories]);
 
+  // Synchronize theme & persist preferences
+  useEffect(() => {
+    applyTheme(preferences.theme);
+    saveStoredPreferences(preferences);
+
+    if (preferences.theme === 'system' && typeof window !== 'undefined' && window.matchMedia) {
+      const media = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = () => applyTheme('system');
+      media.addEventListener('change', handleChange);
+      return () => media.removeEventListener('change', handleChange);
+    }
+  }, [preferences]);
+
+  const handleUpdatePreferences = (updated: Partial<WorkspacePreferences>) => {
+    setPreferences((prev) => {
+      const next = { ...prev, ...updated };
+      saveStoredPreferences(next);
+      applyTheme(next.theme);
+      return next;
+    });
+    addToast('Preferences saved');
+  };
+
   // Derived Metrics & Collections
   const metrics = useMemo(() => calculateMetrics(goals), [goals]);
   const upcomingGoals = useMemo(() => getUpcomingGoals(goals), [goals]);
@@ -115,6 +147,74 @@ export default function App() {
     () => goals.filter((g) => Boolean(g.targetDate && g.targetDate.trim() && parseYmdDate(g.targetDate))).length,
     [goals]
   );
+
+  const isAnyOtherModalOpen =
+    isGoalModalOpen ||
+    isGoalDetailModalOpen ||
+    isGoalDeleteModalOpen ||
+    isNoteModalOpen ||
+    isNoteDetailModalOpen ||
+    isNoteDeleteModalOpen ||
+    isCategoryModalOpen ||
+    isCategoryDetailModalOpen ||
+    isCategoryDeleteModalOpen;
+
+  // Global Shortcut: Cmd+K / Ctrl+K and '/' to toggle Global Search
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // 1. Cmd+K or Ctrl+K
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsGlobalSearchOpen((prev) => !prev);
+        return;
+      }
+
+      // 2. Forward slash '/' opens search when not actively typing and no other modal is open
+      if (
+        e.key === '/' &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !isGlobalSearchOpen &&
+        !isAnyOtherModalOpen
+      ) {
+        const activeElement = document.activeElement;
+        const tag = activeElement?.tagName?.toLowerCase();
+        const isEditable = (activeElement as HTMLElement)?.isContentEditable;
+        if (tag !== 'input' && tag !== 'textarea' && tag !== 'select' && !isEditable) {
+          e.preventDefault();
+          setIsGlobalSearchOpen(true);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [isGlobalSearchOpen, isAnyOtherModalOpen]);
+
+  // Global Search Result Handlers with fresh data resolution
+  const handleSelectGoalFromSearch = (goal: Goal) => {
+    setIsGlobalSearchOpen(false);
+    const freshGoal = goals.find((g) => g.id === goal.id) || goal;
+    setDetailGoal(freshGoal);
+    setIsGoalDetailModalOpen(true);
+  };
+
+  const handleSelectNoteFromSearch = (note: Note) => {
+    setIsGlobalSearchOpen(false);
+    setCurrentTab('notes');
+    const freshNote = notes.find((n) => n.id === note.id) || note;
+    setDetailNote(freshNote);
+    setIsNoteDetailModalOpen(true);
+  };
+
+  const handleSelectCategoryFromSearch = (category: Category) => {
+    setIsGlobalSearchOpen(false);
+    setCurrentTab('categories');
+    const freshCat = categories.find((c) => c.id === category.id) || category;
+    setDetailCategory(freshCat);
+    setIsCategoryDetailModalOpen(true);
+  };
 
   // Goal Actions
   const handleOpenNewGoal = () => {
@@ -662,6 +762,7 @@ export default function App() {
       onSelectTab={setCurrentTab}
       searchQuery={searchQuery}
       onSearchChange={setSearchQuery}
+      onOpenGlobalSearch={() => setIsGlobalSearchOpen(true)}
       onNewGoal={handleOpenNewGoal}
       onNewNote={handleOpenNewNote}
       goalCount={goals.length}
@@ -741,6 +842,25 @@ export default function App() {
           onEditGoal={handleOpenEditGoal}
           onToggleCompleteGoal={handleToggleCompleteGoal}
           onNewGoalForDate={handleNewGoalForDate}
+          initialViewMode={preferences.defaultCalendarView}
+        />
+      ) : currentTab === 'analytics' ? (
+        <AnalyticsScreen
+          goals={goals}
+          categories={categories}
+          onOpenGoalDetails={handleOpenDetailGoal}
+          onNewGoal={handleOpenNewGoal}
+          onNavigateGoalsWithCategory={handleNavigateGoalsWithCategory}
+        />
+      ) : currentTab === 'settings' ? (
+        <SettingsScreen
+          preferences={preferences}
+          onUpdatePreferences={handleUpdatePreferences}
+          goalCount={goals.length}
+          noteCount={notes.length}
+          categoryCount={categories.length}
+          onClearWorkspaceData={handleClearWorkspace}
+          onResetWorkspaceData={handleLoadFixtures}
         />
       ) : (
         <ComingSoonView
@@ -861,6 +981,20 @@ export default function App() {
         category={deletingCategory}
         associatedGoalsCount={deletingCategoryCounts.goalCount}
         associatedNotesCount={deletingCategoryCounts.noteCount}
+      />
+
+      {/* Global Search Dialog */}
+      <GlobalSearchModal
+        isOpen={isGlobalSearchOpen}
+        onClose={() => setIsGlobalSearchOpen(false)}
+        goals={goals}
+        notes={notes}
+        categories={categories}
+        onSelectGoal={handleSelectGoalFromSearch}
+        onSelectNote={handleSelectNoteFromSearch}
+        onSelectCategory={handleSelectCategoryFromSearch}
+        onNavigateGoalsWithCategory={handleNavigateGoalsWithCategory}
+        onNavigateNotesWithCategory={handleNavigateNotesWithCategory}
       />
 
       {/* Toast Notifications */}

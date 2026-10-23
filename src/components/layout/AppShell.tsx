@@ -1,14 +1,16 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { NavigationItem } from '../../types';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { MobileNav } from './MobileNav';
+import { MobileDrawer } from './MobileDrawer';
 
 interface AppShellProps {
   currentTab: NavigationItem;
   onSelectTab: (tab: NavigationItem) => void;
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+  onOpenGlobalSearch: () => void;
   onNewGoal: () => void;
   onNewNote: () => void;
   goalCount: number;
@@ -25,6 +27,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   onSelectTab,
   searchQuery,
   onSearchChange,
+  onOpenGlobalSearch,
   onNewGoal,
   onNewNote,
   goalCount,
@@ -35,6 +38,9 @@ export const AppShell: React.FC<AppShellProps> = ({
   onClearData,
   children,
 }) => {
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const drawerTriggerRef = useRef<HTMLButtonElement | null>(null);
+
   return (
     <div className="min-h-screen bg-[#FAFAFC] text-[#191927] flex flex-row antialiased">
       {/* Desktop Persistent Left Sidebar */}
@@ -45,6 +51,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         noteCount={noteCount}
         categoryCount={categoryCount}
         scheduledGoalCount={scheduledGoalCount}
+        onOpenGlobalSearch={onOpenGlobalSearch}
         onLoadFixtures={onLoadFixtures}
         onClearData={onClearData}
       />
@@ -61,6 +68,9 @@ export const AppShell: React.FC<AppShellProps> = ({
           currentTab={currentTab}
           searchQuery={searchQuery}
           onSearchChange={onSearchChange}
+          onOpenGlobalSearch={onOpenGlobalSearch}
+          onOpenDrawer={() => setIsMobileDrawerOpen(true)}
+          drawerTriggerRef={drawerTriggerRef}
           onNewGoal={onNewGoal}
           onNewNote={onNewNote}
         />
@@ -70,12 +80,26 @@ export const AppShell: React.FC<AppShellProps> = ({
           {children}
         </main>
 
-        {/* Mobile Fixed Bottom Navigation */}
+        {/* Mobile Fixed Bottom Navigation (3 primary items) */}
         <MobileNav
           currentTab={currentTab}
           onSelectTab={onSelectTab}
           goalCount={goalCount}
           noteCount={noteCount}
+        />
+
+        {/* Mobile Slide-in Navigation Drawer ("Open Notion") */}
+        <MobileDrawer
+          isOpen={isMobileDrawerOpen}
+          onClose={() => setIsMobileDrawerOpen(false)}
+          currentTab={currentTab}
+          onSelectTab={onSelectTab}
+          goalCount={goalCount}
+          noteCount={noteCount}
+          categoryCount={categoryCount}
+          scheduledGoalCount={scheduledGoalCount}
+          onOpenGlobalSearch={onOpenGlobalSearch}
+          triggerRef={drawerTriggerRef}
         />
       </div>
     </div>

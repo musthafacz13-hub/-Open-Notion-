@@ -1,24 +1,26 @@
 import React, { useState } from 'react';
 import { NavigationItem } from '../../types';
-import { Plus, Search, X } from 'lucide-react';
+import { Plus, Search, PanelLeft } from 'lucide-react';
 
 interface HeaderProps {
   currentTab: NavigationItem;
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+  onOpenGlobalSearch: () => void;
+  onOpenDrawer?: () => void;
+  drawerTriggerRef?: React.RefObject<HTMLButtonElement | null>;
   onNewGoal: () => void;
   onNewNote: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   currentTab,
-  searchQuery,
-  onSearchChange,
+  onOpenGlobalSearch,
+  onOpenDrawer,
+  drawerTriggerRef,
   onNewGoal,
   onNewNote,
 }) => {
-  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
-
   const getTabTitle = (tab: NavigationItem) => {
     switch (tab) {
       case 'dashboard':
@@ -42,112 +44,75 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-xs border-b border-[#E8E8EE] px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
-      {/* Mobile search bar takeover */}
-      {isMobileSearchOpen ? (
-        <div className="flex-1 flex items-center gap-2 sm:hidden py-1">
-          <div className="flex-1 relative">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#8E8EA0] pointer-events-none" />
-            <input
-              type="text"
-              autoFocus
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search goals &amp; notes..."
-              className="w-full pl-8 pr-7 py-1.5 text-xs text-[#191927] bg-[#FAFAFC] border border-[#E8E8EE] rounded-lg focus:outline-none focus:border-[#191927] focus:bg-white transition-all placeholder:text-[#8E8EA0]"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => onSearchChange('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8E8EA0] hover:text-[#191927] p-0.5"
-                aria-label="Clear search"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
-          </div>
+      {/* Left: Open Notion on mobile / Workspace Breadcrumb on desktop */}
+      <div className="flex items-center gap-2 min-w-0">
+        {onOpenDrawer && (
           <button
+            ref={drawerTriggerRef}
             type="button"
-            onClick={() => {
-              setIsMobileSearchOpen(false);
-              onSearchChange('');
-            }}
-            className="text-xs text-[#646477] hover:text-[#191927] px-2 py-1"
+            onClick={onOpenDrawer}
+            className="sm:hidden flex items-center gap-1.5 px-2.5 py-1.5 -ml-1 text-xs font-semibold text-[#191927] hover:bg-[#F3F3F7] active:bg-[#EBEBEF] rounded-lg transition-colors border border-[#E8E8EE] bg-white cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#191927]"
+            aria-label="Open Notion navigation drawer"
           >
-            Done
+            <PanelLeft className="w-4 h-4 text-[#646477]" aria-hidden="true" />
+            <span>Open Notion</span>
           </button>
+        )}
+
+        <div className="hidden sm:flex items-center gap-2 min-w-0">
+          <span className="text-xs text-[#8E8EA0]">Workspace</span>
+          <span className="text-xs text-[#D0D0DC]">/</span>
+          <h1 className="text-sm font-semibold text-[#191927] truncate">
+            {getTabTitle(currentTab)}
+          </h1>
         </div>
-      ) : (
-        <>
-          {/* Left: View Breadcrumb */}
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-xs text-[#8E8EA0] hidden sm:inline">Workspace</span>
-            <span className="text-xs text-[#D0D0DC] hidden sm:inline">/</span>
-            <h1 className="text-sm font-semibold text-[#191927] truncate">
-              {getTabTitle(currentTab)}
-            </h1>
-          </div>
+      </div>
 
-          {/* Center / Search: Desktop search bar */}
-          <div className="flex-1 max-w-xs relative hidden sm:block">
-            <label htmlFor="workspace-search-desktop" className="sr-only">
-              Search goals and notes
-            </label>
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#8E8EA0] pointer-events-none" />
-              <input
-                id="workspace-search-desktop"
-                type="text"
-                value={searchQuery}
-                onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Search goals &amp; notes..."
-                className="w-full pl-8 pr-7 py-1.5 text-xs text-[#191927] bg-[#FAFAFC] border border-[#E8E8EE] rounded-lg focus:outline-none focus:border-[#191927] focus:bg-white transition-all placeholder:text-[#8E8EA0]"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => onSearchChange('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8E8EA0] hover:text-[#191927] p-0.5"
-                  aria-label="Clear search"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-          </div>
+      {/* Center / Search: Desktop Global Search trigger button */}
+      <button
+        type="button"
+        onClick={onOpenGlobalSearch}
+        className="flex-1 max-w-sm relative hidden sm:flex items-center justify-between pl-8 pr-2.5 py-1.5 text-xs text-[#8E8EA0] bg-[#FAFAFC] hover:bg-[#F3F3F7] border border-[#E8E8EE] hover:border-[#D0D0DC] rounded-lg transition-all text-left group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#191927]"
+        aria-label="Open search (Press Command K)"
+      >
+        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#8E8EA0] group-hover:text-[#191927] transition-colors pointer-events-none" />
+        <span className="truncate">Search goals, notes, categories...</span>
+        <kbd className="hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-[#646477] bg-white border border-[#E8E8EE] rounded shadow-2xs shrink-0">
+          <span className="text-[11px]">⌘</span>K
+        </kbd>
+      </button>
 
-          {/* Right: Actions */}
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Mobile search toggle button */}
-            <button
-              type="button"
-              onClick={() => setIsMobileSearchOpen(true)}
-              className="sm:hidden p-2 text-[#646477] hover:text-[#191927] hover:bg-[#F3F3F7] rounded-lg transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
-              aria-label="Open search"
-            >
-              <Search className="w-4 h-4" />
-            </button>
+      {/* Right: Actions */}
+      <div className="flex items-center gap-2 shrink-0">
+        {/* Mobile search button */}
+        <button
+          type="button"
+          onClick={onOpenGlobalSearch}
+          className="sm:hidden p-2 text-[#646477] hover:text-[#191927] hover:bg-[#F3F3F7] rounded-lg transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
+          aria-label="Open search dialog"
+          title="Search workspace"
+        >
+          <Search className="w-4 h-4" />
+        </button>
 
-            <button
-              type="button"
-              onClick={onNewNote}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#191927] bg-white border border-[#E8E8EE] rounded-lg hover:bg-[#F3F3F7] active:bg-[#EBEBEF] transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#191927] min-h-[34px]"
-            >
-              <Plus className="w-3.5 h-3.5 text-[#646477]" />
-              <span>New Note</span>
-            </button>
+        <button
+          type="button"
+          onClick={onNewNote}
+          className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium text-[#191927] bg-white border border-[#E8E8EE] rounded-lg hover:bg-[#F3F3F7] active:bg-[#EBEBEF] transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#191927] min-h-[34px]"
+        >
+          <Plus className="w-3.5 h-3.5 text-[#646477]" />
+          <span>New Note</span>
+        </button>
 
-            <button
-              type="button"
-              onClick={onNewGoal}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium text-white bg-[#191927] hover:bg-[#2B2B40] active:bg-[#141420] rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#191927] min-h-[34px]"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>New Goal</span>
-            </button>
-          </div>
-        </>
-      )}
+        <button
+          type="button"
+          onClick={onNewGoal}
+          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium text-white bg-[#191927] hover:bg-[#2B2B40] active:bg-[#141420] rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#191927] min-h-[34px]"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>New Goal</span>
+        </button>
+      </div>
     </header>
   );
 };
