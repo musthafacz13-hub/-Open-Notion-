@@ -51,11 +51,11 @@ export const Header: React.FC<HeaderProps> = ({
             ref={drawerTriggerRef}
             type="button"
             onClick={onOpenDrawer}
-            className="sm:hidden flex items-center gap-1.5 px-2.5 py-1.5 -ml-1 text-xs font-semibold text-[#191927] hover:bg-[#F3F3F7] active:bg-[#EBEBEF] rounded-lg transition-colors border border-[#E8E8EE] bg-white cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#191927]"
+            className="sm:hidden flex items-center gap-2 p-1 -ml-1 text-base font-bold tracking-tight text-[#191927] hover:text-[#3B3B52] active:opacity-75 transition-colors cursor-pointer bg-transparent border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#191927] rounded"
             aria-label="Open Notion navigation drawer"
           >
-            <PanelLeft className="w-4 h-4 text-[#646477]" aria-hidden="true" />
-            <span>Open Notion</span>
+            <PanelLeft className="w-4 h-4 text-[#646477] shrink-0" aria-hidden="true" />
+            <span className="leading-none">Open Notion</span>
           </button>
         )}
 

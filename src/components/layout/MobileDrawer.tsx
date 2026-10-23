@@ -10,6 +10,7 @@ import {
   Settings,
   X,
   Search,
+  Home,
 } from 'lucide-react';
 
 interface MobileDrawerProps {
@@ -23,6 +24,7 @@ interface MobileDrawerProps {
   scheduledGoalCount?: number;
   onOpenGlobalSearch?: () => void;
   triggerRef?: React.RefObject<HTMLElement | null>;
+  onNavigateToLanding?: () => void;
 }
 
 export const MobileDrawer: React.FC<MobileDrawerProps> = ({
@@ -36,6 +38,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   scheduledGoalCount,
   onOpenGlobalSearch,
   triggerRef,
+  onNavigateToLanding,
 }) => {
   const drawerRef = useRef<HTMLDivElement>(null);
 
@@ -264,6 +267,26 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
               );
             })}
           </nav>
+
+          {/* Return to Landing Page */}
+          {onNavigateToLanding && (
+            <div className="px-3 pb-3">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onNavigateToLanding();
+                }}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium text-[#646477] hover:bg-[#FAFAFC] hover:text-[#191927] border border-[#E8E8EE] transition-colors cursor-pointer min-h-[44px]"
+              >
+                <div className="flex items-center gap-3">
+                  <Home className="w-4 h-4 text-[#8E8EA0]" />
+                  <span>Landing Page</span>
+                </div>
+                <span className="text-[10px] text-[#8E8EA0]">Home</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Drawer Footer */}

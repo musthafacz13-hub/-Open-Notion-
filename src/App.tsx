@@ -40,8 +40,26 @@ import { AnalyticsScreen } from './components/analytics/AnalyticsScreen';
 import { SettingsScreen } from './components/settings/SettingsScreen';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
 import { Toast, ToastMessage } from './components/common/Toast';
+import { LandingPage } from './components/landing/LandingPage';
+import { LoginPage } from './components/auth/LoginPage';
+import { VerificationPage } from './components/auth/VerificationPage';
+
+export type AppView = 'landing' | 'login' | 'verify' | 'app';
 
 export default function App() {
+  // Top-Level App View State (defaults to landing page on initial visit)
+  const [appView, setAppView] = useState<AppView>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const viewParam = params.get('view');
+      if (viewParam === 'app' || viewParam === 'login' || viewParam === 'verify' || viewParam === 'landing') {
+        return viewParam;
+      }
+    }
+    return 'landing';
+  });
+  const [authEmail, setAuthEmail] = useState<string>('');
+
   // Navigation State
   const [currentTab, setCurrentTab] = useState<NavigationItem>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
@@ -756,6 +774,55 @@ export default function App() {
     addToast('Cleared workspace data', 'info');
   };
 
+  // Render Landing Page View
+  if (appView === 'landing') {
+    return (
+      <>
+        <LandingPage
+          onGetStarted={() => setAppView('login')}
+          onEnterWorkspace={() => setAppView('app')}
+        />
+        <Toast toasts={toasts} onDismiss={dismissToast} />
+      </>
+    );
+  }
+
+  // Render Login View
+  if (appView === 'login') {
+    return (
+      <>
+        <LoginPage
+          onBackToLanding={() => setAppView('landing')}
+          onSubmitEmail={(email) => {
+            setAuthEmail(email);
+            setAppView('verify');
+          }}
+          onEnterWorkspaceDirectly={() => setAppView('app')}
+        />
+        <Toast toasts={toasts} onDismiss={dismissToast} />
+      </>
+    );
+  }
+
+  // Render OTP / Magic Link Verification View
+  if (appView === 'verify') {
+    return (
+      <>
+        <VerificationPage
+          email={authEmail || 'user@example.com'}
+          onBackToLogin={() => setAppView('login')}
+          onBackToLanding={() => setAppView('landing')}
+          onVerifySuccess={() => {
+            setAppView('app');
+            addToast('Welcome to Bucket! Workspace is ready.', 'success');
+          }}
+        />
+        <Toast toasts={toasts} onDismiss={dismissToast} />
+      </>
+    );
+  }
+
+  // Render Full Workspace View
   return (
     <AppShell
       currentTab={currentTab}
@@ -771,6 +838,7 @@ export default function App() {
       scheduledGoalCount={scheduledGoalCount}
       onLoadFixtures={handleLoadFixtures}
       onClearData={handleClearWorkspace}
+      onNavigateToLanding={() => setAppView('landing')}
     >
       {currentTab === 'dashboard' ? (
         <DashboardScreen
@@ -813,6 +881,7 @@ export default function App() {
           goals={goals}
           categories={categories}
           initialCategoryFilter={noteCategoryFilter}
+          initialViewMode={preferences.defaultNotesView}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onNewNote={handleOpenNewNote}

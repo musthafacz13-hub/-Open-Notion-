@@ -14,6 +14,7 @@ interface NotesScreenProps {
   goals: Goal[];
   categories?: Category[];
   initialCategoryFilter?: string;
+  initialViewMode?: 'grid' | 'list';
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
   onNewNote: () => void;
@@ -37,6 +38,7 @@ export const NotesScreen: React.FC<NotesScreenProps> = ({
   goals,
   categories = [],
   initialCategoryFilter,
+  initialViewMode = 'grid',
   searchQuery = '',
   onSearchChange,
   onNewNote,
@@ -55,7 +57,7 @@ export const NotesScreen: React.FC<NotesScreenProps> = ({
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>(initialCategoryFilter || 'All');
   const [sortOption, setSortOption] = useState<NoteSortOption>('recently-updated');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(initialViewMode);
 
   // Keep category filter in sync if navigated with a specific category
   React.useEffect(() => {
@@ -63,6 +65,13 @@ export const NotesScreen: React.FC<NotesScreenProps> = ({
       setCategoryFilter(initialCategoryFilter);
     }
   }, [initialCategoryFilter]);
+
+  // Keep view mode in sync if workspace preference changes
+  React.useEffect(() => {
+    if (initialViewMode) {
+      setViewMode(initialViewMode);
+    }
+  }, [initialViewMode]);
 
   // Dedicated Editor mode state
   const [isEditorOpen, setIsEditorOpen] = useState(false);

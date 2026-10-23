@@ -2,7 +2,6 @@ import React, { useState, useRef } from 'react';
 import { NavigationItem } from '../../types';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
-import { MobileNav } from './MobileNav';
 import { MobileDrawer } from './MobileDrawer';
 
 interface AppShellProps {
@@ -19,6 +18,7 @@ interface AppShellProps {
   scheduledGoalCount?: number;
   onLoadFixtures: () => void;
   onClearData: () => void;
+  onNavigateToLanding?: () => void;
   children: React.ReactNode;
 }
 
@@ -36,6 +36,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   scheduledGoalCount,
   onLoadFixtures,
   onClearData,
+  onNavigateToLanding,
   children,
 }) => {
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
@@ -54,13 +55,14 @@ export const AppShell: React.FC<AppShellProps> = ({
         onOpenGlobalSearch={onOpenGlobalSearch}
         onLoadFixtures={onLoadFixtures}
         onClearData={onClearData}
+        onNavigateToLanding={onNavigateToLanding}
       />
 
       {/* Main Workspace Canvas */}
       <div
-        className="flex-1 flex flex-col min-w-0 md:pb-8"
+        className="flex-1 flex flex-col min-w-0 pb-6 md:pb-8"
         style={{
-          paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 1.5rem)',
         }}
       >
         {/* Top Header */}
@@ -80,14 +82,6 @@ export const AppShell: React.FC<AppShellProps> = ({
           {children}
         </main>
 
-        {/* Mobile Fixed Bottom Navigation (3 primary items) */}
-        <MobileNav
-          currentTab={currentTab}
-          onSelectTab={onSelectTab}
-          goalCount={goalCount}
-          noteCount={noteCount}
-        />
-
         {/* Mobile Slide-in Navigation Drawer ("Open Notion") */}
         <MobileDrawer
           isOpen={isMobileDrawerOpen}
@@ -100,6 +94,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           scheduledGoalCount={scheduledGoalCount}
           onOpenGlobalSearch={onOpenGlobalSearch}
           triggerRef={drawerTriggerRef}
+          onNavigateToLanding={onNavigateToLanding}
         />
       </div>
     </div>

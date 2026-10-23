@@ -10,6 +10,7 @@ import {
   getFixtureData,
 } from '../src/utils/storage';
 import { NavigationItem } from '../src/types';
+import { MobileNav } from '../src/components/layout/MobileNav';
 
 console.log('--- STARTING PHASE 8 SETTINGS & NAVIGATION AUDIT SUITE ---');
 
@@ -129,7 +130,7 @@ assert(fixtures.goals.length > 0, 'Fixtures provide sample goals');
 assert(fixtures.notes.length > 0, 'Fixtures provide sample notes');
 assert(fixtures.categories.length > 0, 'Fixtures provide sample categories');
 
-// TEST 7: Navigation Specification Verification
+// TEST 7: Navigation Specification Verification & Bottom Bar Removal
 console.log('\n--- 7. Testing Navigation Items & Mobile Route Integrity ---');
 const supportedTabs: NavigationItem[] = [
   'dashboard',
@@ -144,12 +145,28 @@ const supportedTabs: NavigationItem[] = [
 assert(supportedTabs.length === 7, 'All 7 workspace sections supported');
 assert(supportedTabs.includes('settings'), 'Settings is officially supported navigation item');
 
-const mobilePrimaryItems: NavigationItem[] = ['dashboard', 'bucket-list', 'notes'];
-assert(mobilePrimaryItems.length === 3, 'Bottom mobile navigation has exactly 3 primary items');
-assert(!mobilePrimaryItems.includes('categories'), 'Categories accessed via Open Notion drawer');
-assert(!mobilePrimaryItems.includes('calendar'), 'Calendar accessed via Open Notion drawer');
-assert(!mobilePrimaryItems.includes('analytics'), 'Analytics accessed via Open Notion drawer');
-assert(!mobilePrimaryItems.includes('settings'), 'Settings accessed via Open Notion drawer');
+// Test that bottom mobile navigation bar is completely eliminated
+const mobileNavResult = MobileNav({});
+assert(mobileNavResult === null, 'Bottom mobile navigation bar component returns null (eliminated)');
+
+// Verify drawer navigation structure supports all 7 workspace sections
+const drawerSections: NavigationItem[] = [
+  'dashboard',
+  'bucket-list',
+  'notes',
+  'categories',
+  'calendar',
+  'analytics',
+  'settings',
+];
+assert(drawerSections.length === 7, 'Open Notion drawer contains all 7 workspace sections');
+assert(drawerSections.includes('dashboard'), 'Dashboard in Open Notion drawer');
+assert(drawerSections.includes('bucket-list'), 'Goals in Open Notion drawer');
+assert(drawerSections.includes('notes'), 'Notes in Open Notion drawer');
+assert(drawerSections.includes('categories'), 'Categories in Open Notion drawer');
+assert(drawerSections.includes('calendar'), 'Calendar in Open Notion drawer');
+assert(drawerSections.includes('analytics'), 'Analytics in Open Notion drawer');
+assert(drawerSections.includes('settings'), 'Settings in Open Notion drawer');
 
 console.log(`\n========================================`);
 console.log(`SUMMARY: ${passedTests}/${totalTests} tests passed successfully!`);

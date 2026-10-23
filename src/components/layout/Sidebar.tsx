@@ -11,6 +11,7 @@ import {
   Database,
   RotateCcw,
   Search,
+  Home,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -23,6 +24,7 @@ interface SidebarProps {
   onOpenGlobalSearch?: () => void;
   onLoadFixtures: () => void;
   onClearData: () => void;
+  onNavigateToLanding?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -35,6 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenGlobalSearch,
   onLoadFixtures,
   onClearData,
+  onNavigateToLanding,
 }) => {
   const navItems = [
     {
@@ -169,6 +172,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
           );
         })}
       </nav>
+
+      {/* Return to Landing Page */}
+      {onNavigateToLanding && (
+        <div className="px-3 pb-2">
+          <button
+            type="button"
+            onClick={onNavigateToLanding}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-[#646477] hover:bg-[#FAFAFC] hover:text-[#191927] border border-[#E8E8EE] transition-colors cursor-pointer"
+            title="Return to the Bucket public landing page"
+          >
+            <div className="flex items-center gap-2">
+              <Home className="w-3.5 h-3.5 text-[#8E8EA0]" />
+              <span>Landing Page</span>
+            </div>
+            <span className="text-[10px] text-[#8E8EA0] font-medium">Home</span>
+          </button>
+        </div>
+      )}
 
       {/* Developer / Interaction Fixtures Footer */}
       <div className="p-3 border-t border-[#E8E8EE] bg-[#FAFAFC] space-y-2">
