@@ -105,6 +105,8 @@ export default function App() {
   });
   const [authEmail, setAuthEmail] = useState<string>('');
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'unauthenticated'>('checking');
+  const [cloudError, setCloudError] = useState<string | null>(null);
   const [isDataLoading, setIsDataLoading] = useState<boolean>(false);
 
   // Navigation State
@@ -167,29 +169,29 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  // Sync to Local Storage ONLY when in guest offline mode
+  // Sync to Local Storage ONLY when in guest unauthenticated mode
   useEffect(() => {
-    if (!currentUser) {
+    if (authStatus === 'unauthenticated' && !currentUser) {
       saveStoredGoals(goals);
     }
-  }, [goals, currentUser]);
+  }, [goals, currentUser, authStatus]);
 
   useEffect(() => {
-    if (!currentUser) {
+    if (authStatus === 'unauthenticated' && !currentUser) {
       saveStoredNotes(notes);
     }
-  }, [notes, currentUser]);
+  }, [notes, currentUser, authStatus]);
 
   useEffect(() => {
-    if (!currentUser) {
+    if (authStatus === 'unauthenticated' && !currentUser) {
       saveStoredCategories(categories);
     }
-  }, [categories, currentUser]);
+  }, [categories, currentUser, authStatus]);
 
   // Synchronize theme & persist preferences
   useEffect(() => {
     applyTheme(preferences.theme);
-    if (!currentUser) {
+    if (authStatus === 'unauthenticated' && !currentUser) {
       saveStoredPreferences(preferences);
     }
 
@@ -199,29 +201,95 @@ export default function App() {
       media.addEventListener('change', handleChange);
       return () => media.removeEventListener('change', handleChange);
     }
-  }, [preferences, currentUser]);
+  }, [preferences, currentUser, authStatus]);
+
+  // Load Cloud Workspace Data from Supabase with clear error state and retry support
+  const loadCloudWorkspace = useCallback(async (user: AuthUser) => {
+    setIsDataLoading(true);
+    setCloudError(null);
+    try {
+      // 1. Perform safe migration of legacy local items if this user has not migrated yet
+      if (!isUserMigrated(user.id)) {
+        const migrationResult = await migrateLocalDataToSupabase(user.id);
+        if (
+          migrationResult.migrated &&
+          (migrationResult.goalsCount > 0 ||
+            migrationResult.notesCount > 0 ||
+            migrationResult.categoriesCount > 0)
+        ) {
+          addToast(
+            `Migrated ${migrationResult.goalsCount} goals, ${migrationResult.notesCount} notes to your cloud account`,
+            'success'
+          );
+        }
+      }
+
+      // 2. Fetch fresh authenticated data directly from Supabase
+      const [cloudCats, cloudGoals, cloudNotes, cloudPrefs] = await Promise.all([
+        fetchCategories(),
+        fetchGoals(),
+        fetchNotes(),
+        fetchPreferences(),
+      ]);
+
+      setCategories(cloudCats);
+      setGoals(cloudGoals);
+      setNotes(cloudNotes);
+      if (cloudPrefs) {
+        setPreferences(cloudPrefs);
+        applyTheme(cloudPrefs.theme);
+      }
+      setCloudError(null);
+    } catch (err) {
+      console.error('Failed to load user workspace data from Supabase:', err);
+      const msg = err instanceof Error ? err.message : 'Could not sync workspace data with cloud.';
+      setCloudError(msg);
+      addToast(msg, 'error');
+    } finally {
+      setIsDataLoading(false);
+    }
+  }, [addToast]);
 
   // Observe Supabase Authentication Session & State Changes
   useEffect(() => {
     let isMounted = true;
 
-    getActiveSession().then((session) => {
-      if (!isMounted) return;
-      if (session?.user) {
-        setCurrentUser(session.user);
-        // If an authenticated session exists and user is on an auth screen, advance to workspace
-        setAppView((prev) =>
-          prev === 'login' || prev === 'signup' || prev === 'forgot-password' ? 'app' : prev
-        );
-      }
-    });
+    getActiveSession()
+      .then((session) => {
+        if (!isMounted) return;
+        if (session?.user) {
+          setCurrentUser(session.user);
+          setAuthStatus('authenticated');
+          // If an authenticated session exists and user is on an auth screen, advance to workspace
+          setAppView((prev) =>
+            prev === 'login' || prev === 'signup' || prev === 'forgot-password' ? 'app' : prev
+          );
+        } else {
+          setCurrentUser(null);
+          setAuthStatus('unauthenticated');
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to check active session:', err);
+        if (!isMounted) return;
+        setCurrentUser(null);
+        setAuthStatus('unauthenticated');
+      });
 
     const { unsubscribe } = subscribeToAuthChanges((session) => {
       if (!isMounted) return;
       if (session?.user) {
         setCurrentUser(session.user);
+        setAuthStatus('authenticated');
       } else {
         setCurrentUser(null);
+        setAuthStatus('unauthenticated');
+        setCloudError(null);
+        // Clear in-memory cloud data to prevent cross-account data bleeding
+        setGoals(loadStoredGoals());
+        setNotes(loadStoredNotes());
+        setCategories(loadStoredCategories());
+        setPreferences(loadStoredPreferences());
       }
     });
 
@@ -231,75 +299,18 @@ export default function App() {
     };
   }, []);
 
-  // Synchronize Cloud Workspace Data & Migration for Authenticated User
+  // Fetch cloud workspace data whenever authenticated user changes
   useEffect(() => {
-    let isCancelled = false;
-
     if (currentUser) {
-      setIsDataLoading(true);
-      (async () => {
-        try {
-          // Perform safe migration of legacy local items if this user has not migrated yet
-          if (!isUserMigrated(currentUser.id)) {
-            const migrationResult = await migrateLocalDataToSupabase(currentUser.id);
-            if (
-              migrationResult.migrated &&
-              (migrationResult.goalsCount > 0 ||
-                migrationResult.notesCount > 0 ||
-                migrationResult.categoriesCount > 0)
-            ) {
-              addToast(
-                `Migrated ${migrationResult.goalsCount} goals, ${migrationResult.notesCount} notes to your cloud account`,
-                'success'
-              );
-            }
-          }
-
-          // Fetch fresh authenticated data from Supabase
-          const [cloudCats, cloudGoals, cloudNotes, cloudPrefs] = await Promise.all([
-            fetchCategories(),
-            fetchGoals(),
-            fetchNotes(),
-            fetchPreferences(),
-          ]);
-
-          if (isCancelled) return;
-
-          setCategories(cloudCats);
-          setGoals(cloudGoals);
-          setNotes(cloudNotes);
-          if (cloudPrefs) {
-            setPreferences(cloudPrefs);
-            applyTheme(cloudPrefs.theme);
-          }
-        } catch (err) {
-          console.error('Failed to load user workspace data:', err);
-          if (!isCancelled) {
-            addToast('Could not sync workspace data with cloud.', 'error');
-          }
-        } finally {
-          if (!isCancelled) {
-            setIsDataLoading(false);
-          }
-        }
-      })();
-    } else {
-      // Revert in-memory state to offline guest data to prevent cross-account data bleeding
-      setGoals(loadStoredGoals());
-      setNotes(loadStoredNotes());
-      setCategories(loadStoredCategories());
-      setPreferences(loadStoredPreferences());
-      setIsDataLoading(false);
+      loadCloudWorkspace(currentUser);
     }
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [currentUser, addToast]);
+  }, [currentUser, loadCloudWorkspace]);
 
   const handleSignOut = async () => {
     await authSignOut();
     setCurrentUser(null);
+    setAuthStatus('unauthenticated');
+    setCloudError(null);
     // Purge in-memory user data and restore clean local guest workspace
     setGoals(loadStoredGoals());
     setNotes(loadStoredNotes());
@@ -602,7 +613,7 @@ export default function App() {
     setIsNoteDetailModalOpen(true);
   };
 
-  const handleSaveNote = (noteData: {
+  const handleSaveNote = async (noteData: {
     id?: string;
     title: string;
     content: string;
@@ -610,7 +621,7 @@ export default function App() {
     linkedGoalId?: string | null;
     categoryId?: string | null;
     category?: string | null;
-  }): Note => {
+  }): Promise<Note | void> => {
     const now = new Date().toISOString();
     const targetId = noteData.id || editingNote?.id;
 
@@ -639,61 +650,51 @@ export default function App() {
       };
 
       if (currentUser) {
-        updateNote(targetId, {
-          title: noteData.title,
-          content: noteData.content,
-          isFavorite: noteData.isFavorite,
-          linkedGoalId: noteData.linkedGoalId,
-          categoryId: noteData.categoryId,
-          category: noteData.category,
-        }).catch((err) => {
+        try {
+          const saved = await updateNote(targetId, {
+            title: noteData.title,
+            content: noteData.content,
+            isFavorite: noteData.isFavorite,
+            linkedGoalId: noteData.linkedGoalId,
+            categoryId: noteData.categoryId,
+            category: noteData.category,
+          });
+          setNotes((prev) => prev.map((n) => (n.id === targetId ? saved : n)));
+          if (detailNote && detailNote.id === targetId) {
+            setDetailNote(saved);
+          }
+          addToast(`Updated note "${noteData.title}"`);
+          return saved;
+        } catch (err) {
           addToast(err instanceof Error ? err.message : 'Failed to update note in cloud', 'error');
-        });
+          return;
+        }
+      } else {
+        setNotes((prev) => prev.map((n) => (n.id === targetId ? updatedNote : n)));
+        if (detailNote && detailNote.id === targetId) {
+          setDetailNote(updatedNote);
+        }
+        addToast(`Updated note "${noteData.title}"`);
+        return updatedNote;
       }
-
-      setNotes((prev) => prev.map((n) => (n.id === targetId ? updatedNote : n)));
-
-      if (detailNote && detailNote.id === targetId) {
-        setDetailNote(updatedNote);
-      }
-
-      addToast(`Updated note "${noteData.title}"`);
-      return updatedNote;
     } else {
       if (currentUser) {
-        const tempId = crypto.randomUUID ? crypto.randomUUID() : 'note_' + Date.now().toString(36);
-        const newNote: Note = {
-          id: tempId,
-          title: noteData.title,
-          content: noteData.content,
-          isFavorite: noteData.isFavorite,
-          linkedGoalId: noteData.linkedGoalId || null,
-          categoryId: noteData.categoryId || null,
-          category: noteData.category || null,
-          createdAt: now,
-          updatedAt: now,
-          tags: [],
-        };
-        setNotes((prev) => [newNote, ...prev]);
-
-        createNote({
-          id: tempId,
-          title: noteData.title,
-          content: noteData.content,
-          isFavorite: noteData.isFavorite,
-          linkedGoalId: noteData.linkedGoalId,
-          categoryId: noteData.categoryId,
-          category: noteData.category,
-        })
-          .then((saved) => {
-            setNotes((prev) => prev.map((n) => (n.id === tempId ? saved : n)));
-          })
-          .catch((err) => {
-            addToast(err instanceof Error ? err.message : 'Failed to save note to cloud', 'error');
+        try {
+          const saved = await createNote({
+            title: noteData.title,
+            content: noteData.content,
+            isFavorite: noteData.isFavorite,
+            linkedGoalId: noteData.linkedGoalId,
+            categoryId: noteData.categoryId,
+            category: noteData.category,
           });
-
-        addToast(`Created note "${noteData.title}"`);
-        return newNote;
+          setNotes((prev) => [saved, ...prev]);
+          addToast(`Created note "${noteData.title}"`);
+          return saved;
+        } catch (err) {
+          addToast(err instanceof Error ? err.message : 'Failed to create note in cloud', 'error');
+          return;
+        }
       } else {
         const newNote: Note = {
           id: 'note_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
@@ -1154,6 +1155,29 @@ export default function App() {
     );
   }
 
+  // Session Check Screen if directly visiting the app before auth check completes
+  if (authStatus === 'checking' && appView === 'app') {
+    return (
+      <div className="min-h-screen bg-[#FDFDFE] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-10 h-10 rounded-xl bg-[#191927] text-white flex items-center justify-center mb-4 shadow-xs">
+          <svg
+            className="w-5 h-5 text-white animate-spin"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+          </svg>
+        </div>
+        <h2 className="text-sm font-semibold text-[#191927]">Connecting to Bucket...</h2>
+        <p className="text-xs text-[#646477] mt-1">Restoring your workspace session</p>
+      </div>
+    );
+  }
+
   // Render Full Workspace View
   return (
     <AppShell
@@ -1178,6 +1202,22 @@ export default function App() {
         <div className="bg-[#FAFAFC] border-b border-[#E8E8EE] px-4 py-2 text-xs text-[#646477] flex items-center justify-center gap-2">
           <span className="w-2 h-2 rounded-full bg-[#08C83D] animate-ping" />
           <span>Synchronizing workspace with Supabase cloud...</span>
+        </div>
+      )}
+      {currentUser && cloudError && (
+        <div className="bg-[#FFF4F2] border-b border-[#FDDAD7] px-4 py-3 text-xs text-[#BC1C24] flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">Cloud Sync Error:</span>
+            <span>{cloudError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => currentUser && loadCloudWorkspace(currentUser)}
+            disabled={isDataLoading}
+            className="px-3 py-1 bg-white border border-[#FDDAD7] hover:bg-[#FDECEB] text-[#BC1C24] font-semibold rounded-md shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {isDataLoading ? 'Retrying...' : 'Retry Connection'}
+          </button>
         </div>
       )}
       {currentTab === 'dashboard' ? (

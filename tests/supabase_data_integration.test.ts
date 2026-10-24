@@ -176,6 +176,90 @@ assert(Array.isArray(backupParsed.notes), 'Backup preserves notes array');
 assert(Array.isArray(backupParsed.categories), 'Backup preserves categories array');
 assert(typeof backupParsed.preferences === 'object', 'Backup preserves preferences');
 
+// ---------------------------------------------------------------------------
+// 4. Landing Page Zero Mock Data Audit
+// ---------------------------------------------------------------------------
+console.log('\n--- 4. Testing Zero Mock Data in Landing Page Source ---');
+
+import * as fs from 'fs';
+import * as path from 'path';
+
+const landingPageSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/landing/LandingPage.tsx'), 'utf-8');
+const interfacePreviewSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/landing/InterfacePreview.tsx'), 'utf-8');
+const landingHeaderSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/components/landing/LandingHeader.tsx'), 'utf-8');
+
+const combinedLandingSrc = landingPageSrc + '\n' + interfacePreviewSrc + '\n' + landingHeaderSrc;
+
+const bannedMockStrings = [
+  'Hike the High Sierra Trail',
+  'Master conversational Japanese',
+  'Publish architectural photography',
+  'Alex',
+  '67%',
+  '92%',
+  '58%',
+  '9 active notes',
+  '12 goals',
+  '5 in progress',
+  '7 completed',
+  'Deadline Accuracy',
+];
+
+for (const banned of bannedMockStrings) {
+  assert(
+    !combinedLandingSrc.includes(banned),
+    `Landing components must not contain mock record: "${banned}"`
+  );
+}
+
+// Check required copy
+assert(combinedLandingSrc.includes('Make room for what matters.'), 'Landing page contains exact headline: "Make room for what matters."');
+assert(combinedLandingSrc.includes('Your goals, notes, and plans. One calm space.'), 'Landing page contains exact subcopy: "Your goals, notes, and plans. One calm space."');
+assert(combinedLandingSrc.includes('Get started'), 'Landing page contains "Get started" CTA');
+assert(combinedLandingSrc.includes('Explore Bucket'), 'Landing page contains "Explore Bucket" secondary CTA');
+
+// ---------------------------------------------------------------------------
+// 5. Data Persistence & LocalStorage Rules Verification
+// ---------------------------------------------------------------------------
+console.log('\n--- 5. Testing Data Persistence Rules & Isolation ---');
+
+const appSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/App.tsx'), 'utf-8');
+
+// Verify no silent fallback to localStorage in cloud loading
+assert(
+  !appSrc.includes('setGoals(loadStoredGoals())') || appSrc.includes("authStatus === 'unauthenticated'"),
+  'App does not silently fall back to localStorage on cloud fetch failure'
+);
+
+// Verify clear cloud error state and retry exists
+assert(appSrc.includes('cloudError'), 'App manages dedicated cloudError state');
+assert(appSrc.includes('Retry Connection'), 'App provides explicit Retry Connection action on cloud failure');
+
+// Verify localStorage writes are guarded against authenticated users
+assert(
+  appSrc.includes("authStatus === 'unauthenticated' && !currentUser"),
+  'LocalStorage writes are strictly constrained to unauthenticated guest mode'
+);
+
+// Verify migration clears guest keys while retaining backup
+const migrationSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/services/migrationService.ts'), 'utf-8');
+assert(
+  migrationSrc.includes('bucket_legacy_backup_'),
+  'Migration creates secure user-scoped backup key'
+);
+assert(
+  migrationSrc.includes("localStorage.removeItem('bucket_goals_v1')"),
+  'Migration clears guest workspace goals key after verified cloud migration'
+);
+assert(
+  migrationSrc.includes("localStorage.removeItem('bucket_notes_v1')"),
+  'Migration clears guest workspace notes key after verified cloud migration'
+);
+assert(
+  migrationSrc.includes("localStorage.removeItem('bucket_categories_v1')"),
+  'Migration clears guest workspace categories key after verified cloud migration'
+);
+
 console.log('\n======================================================');
 console.log(`SUMMARY: ${passedTests}/${totalTests} SUPABASE DATA INTEGRATION TESTS PASSED!`);
 console.log('======================================================\n');

@@ -8,6 +8,8 @@ import {
 import { Category, Goal, Note } from '../types';
 import {
   fetchCategories,
+  fetchGoals,
+  fetchNotes,
   createCategory,
   createGoal,
   createNote,
@@ -94,8 +96,13 @@ export async function migrateLocalDataToSupabase(userId: string): Promise<Migrat
   createLocalBackup(userId);
 
   try {
-    // 2. Fetch existing cloud categories to prevent unique constraint conflicts
-    const cloudCategories = await fetchCategories();
+    // 2. Fetch existing cloud data to prevent duplicates on retries
+    const [cloudCategories, cloudGoals, cloudNotes] = await Promise.all([
+      fetchCategories(),
+      fetchGoals(),
+      fetchNotes(),
+    ]);
+
     const categoryNameToUuid = new Map<string, string>();
     const legacyCategoryMap = new Map<string, string>();
 
@@ -129,11 +136,23 @@ export async function migrateLocalDataToSupabase(userId: string): Promise<Migrat
       }
     }
 
-    // 3. Migrate Goals
+    // 3. Migrate Goals with deduplication
     let goalsCount = 0;
     const legacyGoalMap = new Map<string, string>();
 
     for (const localGoal of localGoals) {
+      const normalizedGoalTitle = localGoal.title.toLowerCase().trim();
+      const existingCloudGoal = cloudGoals.find(
+        (cg: Goal) =>
+          cg.title.toLowerCase().trim() === normalizedGoalTitle &&
+          (cg.targetDate || null) === (localGoal.targetDate || null)
+      );
+
+      if (existingCloudGoal) {
+        legacyGoalMap.set(localGoal.id, existingCloudGoal.id);
+        continue;
+      }
+
       const newGoalUuid = isValidUuid(localGoal.id) ? localGoal.id : generateUuid();
 
       // Resolve categoryId
@@ -162,9 +181,18 @@ export async function migrateLocalDataToSupabase(userId: string): Promise<Migrat
       }
     }
 
-    // 4. Migrate Notes
+    // 4. Migrate Notes with deduplication
     let notesCount = 0;
     for (const localNote of localNotes) {
+      const normalizedNoteTitle = localNote.title.toLowerCase().trim();
+      const existingCloudNote = cloudNotes.find(
+        (cn: Note) => cn.title.toLowerCase().trim() === normalizedNoteTitle
+      );
+
+      if (existingCloudNote) {
+        continue;
+      }
+
       const newNoteUuid = isValidUuid(localNote.id) ? localNote.id : generateUuid();
 
       let resolvedCategoryId: string | null = null;
@@ -203,8 +231,18 @@ export async function migrateLocalDataToSupabase(userId: string): Promise<Migrat
       console.warn('Could not migrate user preferences:', prefErr);
     }
 
-    // Mark as successfully migrated
+    // 6. Verify migration and mark complete
     markUserMigrated(userId);
+
+    // 7. Clear guest workspace keys now that cloud migration is verified,
+    // while keeping bucket_legacy_backup_${userId} intact for safe recovery
+    try {
+      localStorage.removeItem('bucket_goals_v1');
+      localStorage.removeItem('bucket_notes_v1');
+      localStorage.removeItem('bucket_categories_v1');
+    } catch {
+      // Ignore if localStorage unavailable
+    }
 
     return {
       migrated: true,

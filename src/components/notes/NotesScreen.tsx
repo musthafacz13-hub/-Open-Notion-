@@ -29,7 +29,7 @@ interface NotesScreenProps {
     linkedGoalId?: string | null;
     categoryId?: string | null;
     category?: string | null;
-  }) => Note | void;
+  }) => Note | Promise<Note | void> | void;
   onOpenDetails: (note: Note) => void;
 }
 
@@ -130,7 +130,13 @@ export const NotesScreen: React.FC<NotesScreenProps> = ({
         onSave={(data) => {
           const saved = onSaveNote(data);
           if (saved && typeof saved === 'object') {
-            setActiveEditorNote(saved);
+            if ('then' in saved) {
+              (saved as Promise<Note | void>).then((resolved) => {
+                if (resolved) setActiveEditorNote(resolved);
+              });
+            } else {
+              setActiveEditorNote(saved as Note);
+            }
           }
           return saved;
         }}

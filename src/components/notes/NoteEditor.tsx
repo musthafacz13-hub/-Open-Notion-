@@ -37,7 +37,7 @@ interface NoteEditorProps {
     linkedGoalId?: string | null;
     categoryId?: string | null;
     category?: string | null;
-  }) => Note | void;
+  }) => Note | Promise<Note | void> | void;
   onClose: () => void;
   onDeleteNote: (note: Note) => void;
   onToggleFavorite?: (noteId: string) => void;
@@ -133,8 +133,22 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         category: actualCatName,
       });
 
-      if (saved && typeof saved === 'object' && saved.id) {
-        setCurrentId(saved.id);
+      if (saved && typeof saved === 'object') {
+        if ('then' in saved) {
+          (saved as Promise<Note | void>)
+            .then((resolved) => {
+              if (resolved && resolved.id) {
+                setCurrentId(resolved.id);
+              }
+              setSaveStatus('saved');
+            })
+            .catch(() => {
+              setSaveStatus('unsaved');
+            });
+          return;
+        } else if ('id' in saved && saved.id) {
+          setCurrentId(saved.id);
+        }
       }
 
       setTimeout(() => setSaveStatus('saved'), 400);
