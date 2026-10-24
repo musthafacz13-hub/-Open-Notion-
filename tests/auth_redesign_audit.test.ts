@@ -106,8 +106,19 @@ console.log('\n--- 3. Testing Truthful Backend Behavior & Credential Guards ---'
 const isConfigured = isSupabaseConfigured();
 assert(typeof isConfigured === 'boolean', 'isSupabaseConfigured returns boolean');
 
-// In testing environment without real Supabase env vars:
-if (!isConfigured) {
+// If Supabase is configured in environment:
+if (isConfigured) {
+  const config = getSupabaseConfig();
+  assert(config.url.startsWith('https://'), 'Supabase URL uses secure HTTPS protocol');
+  assert(config.url.includes('.supabase.co'), 'Supabase URL points to supabase.co domain');
+  assert(config.hasKey === true, 'Supabase key is present and loaded');
+
+  const session = await getActiveSession();
+  assert(session === null, 'Active session is initially null when not authenticated');
+
+  const signOutRes = await signOut();
+  assert(signOutRes.success === true, 'signOut handles clean state without error');
+} else {
   const config = getSupabaseConfig();
   assert(config.url === '', 'Supabase URL is empty when env var is omitted');
   assert(config.hasKey === false, 'Anon key is missing when env var is omitted');
