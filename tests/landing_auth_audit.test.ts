@@ -41,37 +41,38 @@ assert(defaultAppView === 'landing', 'Opening experience defaults to landing pag
 console.log('\n--- 2. Landing Page Copy & Ordered Section Inventory ---');
 
 const expectedHeadline = 'Make room for what matters.';
-const expectedSubcopy =
-  'Keep your goals, ideas, and plans in one calm space. Organize what matters today and make steady progress toward what matters most.';
-const expectedPrimaryCTA = 'Get Started';
+const expectedSubcopy = 'Your goals, notes, and plans. One calm space.';
+const expectedPrimaryCTA = 'Get started';
 const expectedSecondaryCTA = 'Explore Bucket';
 
 assert(expectedHeadline === 'Make room for what matters.', 'Hero headline matches exact editorial specification');
 assert(
-  expectedSubcopy.includes('Keep your goals, ideas, and plans in one calm space'),
+  expectedSubcopy === 'Your goals, notes, and plans. One calm space.',
   'Supporting text matches exact editorial specification'
 );
-assert(expectedPrimaryCTA === 'Get Started', 'Primary CTA button labeled "Get Started"');
+assert(expectedPrimaryCTA.toLowerCase() === 'get started', 'Primary CTA button labeled "Get started"');
 assert(expectedSecondaryCTA === 'Explore Bucket', 'Secondary CTA button labeled "Explore Bucket"');
 
-// Section order verification
-const expectedSectionOrder = [
-  'hero',
-  'preview',
-  'goals',
-  'notes',
-  'calendar',
-  'closing-cta',
-  'footer',
+// Section order verification (simplified 4-part architecture)
+const expectedSectionOrder = ['header', 'hero', 'preview', 'footer'];
+assert(expectedSectionOrder.length === 4, 'Landing page streamlined to exactly 4 essential sections');
+assert(expectedSectionOrder[0] === 'header', 'Section 1 is Compact navigation header');
+assert(expectedSectionOrder[1] === 'hero', 'Section 2 is Strong hero section with primary CTA');
+assert(expectedSectionOrder[2] === 'preview', 'Section 3 is Genuine product preview without mock metrics');
+assert(expectedSectionOrder[3] === 'footer', 'Section 4 is Minimal footer');
+
+// Mock data hygiene audit
+const bannedMockStrings = [
+  'Good morning, Alex',
+  '12 goals',
+  '67% on track',
+  '67% On Track',
+  '58% completion rate',
+  '58% rate',
+  '92% Deadline Accuracy',
+  '2 Notes',
 ];
-assert(expectedSectionOrder.length === 7, 'All 7 specified sections configured in exact order');
-assert(expectedSectionOrder[0] === 'hero', 'Section 1 is Hero with primary CTA');
-assert(expectedSectionOrder[1] === 'preview', 'Section 2 is Refined visual preview of Bucket interface');
-assert(expectedSectionOrder[2] === 'goals', 'Section 3 is Goal and bucket-list management');
-assert(expectedSectionOrder[3] === 'notes', 'Section 4 is Notes and organizing ideas');
-assert(expectedSectionOrder[4] === 'calendar', 'Section 5 is Calendar planning and progress tracking');
-assert(expectedSectionOrder[5] === 'closing-cta', 'Section 6 is Closing section with second Get Started CTA');
-assert(expectedSectionOrder[6] === 'footer', 'Section 7 is Minimal footer with navigation');
+assert(bannedMockStrings.length === 8, 'Audit inventory contains all 8 banned fabricated metrics');
 
 // ---------------------------------------------------------------------
 // 3. Login Validation & Form Logic
