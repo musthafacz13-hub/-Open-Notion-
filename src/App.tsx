@@ -50,6 +50,26 @@ import {
   subscribeToAuthChanges,
   signOut as authSignOut,
 } from './services/authService';
+import {
+  fetchCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  fetchGoals,
+  createGoal,
+  updateGoal,
+  deleteGoal,
+  fetchNotes,
+  createNote,
+  updateNote,
+  deleteNote,
+  fetchPreferences,
+  upsertPreferences,
+} from './services/dbService';
+import {
+  migrateLocalDataToSupabase,
+  isUserMigrated,
+} from './services/migrationService';
 
 export type AppView =
   | 'landing'
@@ -85,6 +105,7 @@ export default function App() {
   });
   const [authEmail, setAuthEmail] = useState<string>('');
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [isDataLoading, setIsDataLoading] = useState<boolean>(false);
 
   // Navigation State
   const [currentTab, setCurrentTab] = useState<NavigationItem>('dashboard');
@@ -134,35 +155,43 @@ export default function App() {
   // Transient Toast Notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const addToast = useCallback((message: string, type: 'success' | 'info' = 'success') => {
+  const addToast = useCallback((message: string, type: 'success' | 'info' | 'error' = 'success') => {
     const id = Date.now().toString() + Math.random().toString(36).substring(2, 6);
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
+    }, 3500);
   }, []);
 
   const dismissToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  // Sync to Local Storage
+  // Sync to Local Storage ONLY when in guest offline mode
   useEffect(() => {
-    saveStoredGoals(goals);
-  }, [goals]);
+    if (!currentUser) {
+      saveStoredGoals(goals);
+    }
+  }, [goals, currentUser]);
 
   useEffect(() => {
-    saveStoredNotes(notes);
-  }, [notes]);
+    if (!currentUser) {
+      saveStoredNotes(notes);
+    }
+  }, [notes, currentUser]);
 
   useEffect(() => {
-    saveStoredCategories(categories);
-  }, [categories]);
+    if (!currentUser) {
+      saveStoredCategories(categories);
+    }
+  }, [categories, currentUser]);
 
   // Synchronize theme & persist preferences
   useEffect(() => {
     applyTheme(preferences.theme);
-    saveStoredPreferences(preferences);
+    if (!currentUser) {
+      saveStoredPreferences(preferences);
+    }
 
     if (preferences.theme === 'system' && typeof window !== 'undefined' && window.matchMedia) {
       const media = window.matchMedia('(prefers-color-scheme: dark)');
@@ -170,7 +199,7 @@ export default function App() {
       media.addEventListener('change', handleChange);
       return () => media.removeEventListener('change', handleChange);
     }
-  }, [preferences]);
+  }, [preferences, currentUser]);
 
   // Observe Supabase Authentication Session & State Changes
   useEffect(() => {
@@ -202,21 +231,100 @@ export default function App() {
     };
   }, []);
 
+  // Synchronize Cloud Workspace Data & Migration for Authenticated User
+  useEffect(() => {
+    let isCancelled = false;
+
+    if (currentUser) {
+      setIsDataLoading(true);
+      (async () => {
+        try {
+          // Perform safe migration of legacy local items if this user has not migrated yet
+          if (!isUserMigrated(currentUser.id)) {
+            const migrationResult = await migrateLocalDataToSupabase(currentUser.id);
+            if (
+              migrationResult.migrated &&
+              (migrationResult.goalsCount > 0 ||
+                migrationResult.notesCount > 0 ||
+                migrationResult.categoriesCount > 0)
+            ) {
+              addToast(
+                `Migrated ${migrationResult.goalsCount} goals, ${migrationResult.notesCount} notes to your cloud account`,
+                'success'
+              );
+            }
+          }
+
+          // Fetch fresh authenticated data from Supabase
+          const [cloudCats, cloudGoals, cloudNotes, cloudPrefs] = await Promise.all([
+            fetchCategories(),
+            fetchGoals(),
+            fetchNotes(),
+            fetchPreferences(),
+          ]);
+
+          if (isCancelled) return;
+
+          setCategories(cloudCats);
+          setGoals(cloudGoals);
+          setNotes(cloudNotes);
+          if (cloudPrefs) {
+            setPreferences(cloudPrefs);
+            applyTheme(cloudPrefs.theme);
+          }
+        } catch (err) {
+          console.error('Failed to load user workspace data:', err);
+          if (!isCancelled) {
+            addToast('Could not sync workspace data with cloud.', 'error');
+          }
+        } finally {
+          if (!isCancelled) {
+            setIsDataLoading(false);
+          }
+        }
+      })();
+    } else {
+      // Revert in-memory state to offline guest data to prevent cross-account data bleeding
+      setGoals(loadStoredGoals());
+      setNotes(loadStoredNotes());
+      setCategories(loadStoredCategories());
+      setPreferences(loadStoredPreferences());
+      setIsDataLoading(false);
+    }
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentUser, addToast]);
+
   const handleSignOut = async () => {
     await authSignOut();
     setCurrentUser(null);
+    // Purge in-memory user data and restore clean local guest workspace
+    setGoals(loadStoredGoals());
+    setNotes(loadStoredNotes());
+    setCategories(loadStoredCategories());
+    setPreferences(loadStoredPreferences());
     setAppView('landing');
     addToast('Signed out of Bucket', 'info');
   };
 
-  const handleUpdatePreferences = (updated: Partial<WorkspacePreferences>) => {
-    setPreferences((prev) => {
-      const next = { ...prev, ...updated };
+  const handleUpdatePreferences = async (updated: Partial<WorkspacePreferences>) => {
+    const next = { ...preferences, ...updated };
+    setPreferences(next);
+    applyTheme(next.theme);
+
+    if (currentUser) {
+      try {
+        await upsertPreferences(next);
+        addToast('Preferences saved');
+      } catch (err) {
+        addToast(err instanceof Error ? err.message : 'Failed to save preferences to cloud', 'error');
+      }
+    } else {
       saveStoredPreferences(next);
-      applyTheme(next.theme);
-      return next;
-    });
-    addToast('Preferences saved');
+      addToast('Preferences saved');
+    }
   };
 
   // Derived Metrics & Collections
@@ -321,7 +429,7 @@ export default function App() {
     setIsGoalDetailModalOpen(true);
   };
 
-  const handleSaveGoal = (goalData: {
+  const handleSaveGoal = async (goalData: {
     title: string;
     description: string;
     category: string;
@@ -344,34 +452,61 @@ export default function App() {
         updatedAt: now,
       };
 
-      setGoals((prev) =>
-        prev.map((g) => (g.id === editingGoal.id ? updatedGoal : g))
-      );
-
-      // Keep detail modal in sync if open
-      if (detailGoal && detailGoal.id === editingGoal.id) {
-        setDetailGoal(updatedGoal);
+      if (currentUser) {
+        try {
+          const saved = await updateGoal(editingGoal.id, {
+            title: goalData.title,
+            description: goalData.description,
+            category: goalData.category,
+            categoryId: goalData.categoryId,
+            priority: goalData.priority,
+            status: goalData.status,
+            targetDate: goalData.targetDate,
+          });
+          setGoals((prev) => prev.map((g) => (g.id === editingGoal.id ? saved : g)));
+          if (detailGoal && detailGoal.id === editingGoal.id) {
+            setDetailGoal(saved);
+          }
+          addToast(`Updated "${goalData.title}"`);
+        } catch (err) {
+          addToast(err instanceof Error ? err.message : 'Failed to update goal in cloud', 'error');
+        }
+      } else {
+        setGoals((prev) => prev.map((g) => (g.id === editingGoal.id ? updatedGoal : g)));
+        if (detailGoal && detailGoal.id === editingGoal.id) {
+          setDetailGoal(updatedGoal);
+        }
+        addToast(`Updated "${goalData.title}"`);
       }
-
-      addToast(`Updated "${goalData.title}"`);
     } else {
       // Create new
-      const newGoal: Goal = {
-        id: 'goal_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
-        ...goalData,
-        categoryId: goalData.categoryId || null,
-        createdAt: now,
-        updatedAt: now,
-      };
-      setGoals((prev) => [newGoal, ...prev]);
-      addToast(`Created goal "${goalData.title}"`);
+      if (currentUser) {
+        try {
+          const saved = await createGoal(goalData);
+          setGoals((prev) => [saved, ...prev]);
+          addToast(`Created goal "${goalData.title}"`);
+        } catch (err) {
+          addToast(err instanceof Error ? err.message : 'Failed to create goal in cloud', 'error');
+        }
+      } else {
+        const newGoal: Goal = {
+          id: 'goal_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+          ...goalData,
+          categoryId: goalData.categoryId || null,
+          createdAt: now,
+          updatedAt: now,
+        };
+        setGoals((prev) => [newGoal, ...prev]);
+        addToast(`Created goal "${goalData.title}"`);
+      }
     }
   };
 
-  const handleStatusChangeGoal = (goalId: string, nextStatus: GoalStatus) => {
+  const handleStatusChangeGoal = async (goalId: string, nextStatus: GoalStatus) => {
     const now = new Date().toISOString();
     let updatedTitle = '';
 
+    const prevGoals = goals;
     setGoals((prev) =>
       prev.map((g) => {
         if (g.id !== goalId) return g;
@@ -393,31 +528,22 @@ export default function App() {
         ? `Completed "${updatedTitle}"!`
         : `Marked "${updatedTitle}" as ${nextStatus}`;
     addToast(msg);
+
+    if (currentUser) {
+      try {
+        await updateGoal(goalId, { status: nextStatus });
+      } catch (err) {
+        setGoals(prevGoals);
+        addToast(err instanceof Error ? err.message : 'Failed to update goal status', 'error');
+      }
+    }
   };
 
-  const handleToggleCompleteGoal = (goalId: string) => {
-    const now = new Date().toISOString();
-    setGoals((prev) =>
-      prev.map((g) => {
-        if (g.id !== goalId) return g;
-        const nextStatus: GoalStatus = g.status === 'Completed' ? 'In Progress' : 'Completed';
-        const msg =
-          nextStatus === 'Completed'
-            ? `Completed "${g.title}"!`
-            : `Marked "${g.title}" in progress`;
-        addToast(msg);
-
-        const updated = {
-          ...g,
-          status: nextStatus,
-          updatedAt: now,
-        };
-        if (detailGoal && detailGoal.id === goalId) {
-          setDetailGoal(updated);
-        }
-        return updated;
-      })
-    );
+  const handleToggleCompleteGoal = async (goalId: string) => {
+    const target = goals.find((g) => g.id === goalId);
+    if (!target) return;
+    const nextStatus: GoalStatus = target.status === 'Completed' ? 'In Progress' : 'Completed';
+    await handleStatusChangeGoal(goalId, nextStatus);
   };
 
   const handlePromptDeleteGoal = (goal: Goal) => {
@@ -425,15 +551,16 @@ export default function App() {
     setIsGoalDeleteModalOpen(true);
   };
 
-  const handleConfirmDeleteGoal = () => {
+  const handleConfirmDeleteGoal = async () => {
     if (!deletingGoal) return;
     const title = deletingGoal.title;
     const goalIdToDelete = deletingGoal.id;
 
-    // Remove goal from goals list
-    setGoals((prev) => prev.filter((g) => g.id !== goalIdToDelete));
+    const prevGoals = goals;
+    const prevNotes = notes;
 
-    // Clear any links to this goal in notes to prevent orphaned references
+    // Optimistically remove from state
+    setGoals((prev) => prev.filter((g) => g.id !== goalIdToDelete));
     setNotes((prev) =>
       prev.map((n) => (n.linkedGoalId === goalIdToDelete ? { ...n, linkedGoalId: null } : n))
     );
@@ -444,7 +571,19 @@ export default function App() {
     }
 
     setDeletingGoal(null);
-    addToast(`Deleted "${title}"`, 'info');
+
+    if (currentUser) {
+      try {
+        await deleteGoal(goalIdToDelete);
+        addToast(`Deleted "${title}"`, 'info');
+      } catch (err) {
+        setGoals(prevGoals);
+        setNotes(prevNotes);
+        addToast(err instanceof Error ? err.message : 'Failed to delete goal from cloud', 'error');
+      }
+    } else {
+      addToast(`Deleted "${title}"`, 'info');
+    }
   };
 
   // Note Actions
@@ -499,6 +638,19 @@ export default function App() {
         tags: existing?.tags || [],
       };
 
+      if (currentUser) {
+        updateNote(targetId, {
+          title: noteData.title,
+          content: noteData.content,
+          isFavorite: noteData.isFavorite,
+          linkedGoalId: noteData.linkedGoalId,
+          categoryId: noteData.categoryId,
+          category: noteData.category,
+        }).catch((err) => {
+          addToast(err instanceof Error ? err.message : 'Failed to update note in cloud', 'error');
+        });
+      }
+
       setNotes((prev) => prev.map((n) => (n.id === targetId ? updatedNote : n)));
 
       if (detailNote && detailNote.id === targetId) {
@@ -508,29 +660,69 @@ export default function App() {
       addToast(`Updated note "${noteData.title}"`);
       return updatedNote;
     } else {
-      const newNote: Note = {
-        id: 'note_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
-        title: noteData.title,
-        content: noteData.content,
-        isFavorite: noteData.isFavorite,
-        linkedGoalId: noteData.linkedGoalId || null,
-        categoryId: noteData.categoryId || null,
-        category: noteData.category || null,
-        createdAt: now,
-        updatedAt: now,
-        tags: [],
-      };
-      setNotes((prev) => [newNote, ...prev]);
-      addToast(`Created note "${noteData.title}"`);
-      return newNote;
+      if (currentUser) {
+        const tempId = crypto.randomUUID ? crypto.randomUUID() : 'note_' + Date.now().toString(36);
+        const newNote: Note = {
+          id: tempId,
+          title: noteData.title,
+          content: noteData.content,
+          isFavorite: noteData.isFavorite,
+          linkedGoalId: noteData.linkedGoalId || null,
+          categoryId: noteData.categoryId || null,
+          category: noteData.category || null,
+          createdAt: now,
+          updatedAt: now,
+          tags: [],
+        };
+        setNotes((prev) => [newNote, ...prev]);
+
+        createNote({
+          id: tempId,
+          title: noteData.title,
+          content: noteData.content,
+          isFavorite: noteData.isFavorite,
+          linkedGoalId: noteData.linkedGoalId,
+          categoryId: noteData.categoryId,
+          category: noteData.category,
+        })
+          .then((saved) => {
+            setNotes((prev) => prev.map((n) => (n.id === tempId ? saved : n)));
+          })
+          .catch((err) => {
+            addToast(err instanceof Error ? err.message : 'Failed to save note to cloud', 'error');
+          });
+
+        addToast(`Created note "${noteData.title}"`);
+        return newNote;
+      } else {
+        const newNote: Note = {
+          id: 'note_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+          title: noteData.title,
+          content: noteData.content,
+          isFavorite: noteData.isFavorite,
+          linkedGoalId: noteData.linkedGoalId || null,
+          categoryId: noteData.categoryId || null,
+          category: noteData.category || null,
+          createdAt: now,
+          updatedAt: now,
+          tags: [],
+        };
+        setNotes((prev) => [newNote, ...prev]);
+        addToast(`Created note "${noteData.title}"`);
+        return newNote;
+      }
     }
   };
 
-  const handleToggleFavoriteNote = (noteId: string) => {
+  const handleToggleFavoriteNote = async (noteId: string) => {
+    const target = notes.find((n) => n.id === noteId);
+    if (!target) return;
+    const next = !target.isFavorite;
+
+    const prevNotes = notes;
     setNotes((prev) =>
       prev.map((n) => {
         if (n.id !== noteId) return n;
-        const next = !n.isFavorite;
         const updated = {
           ...n,
           isFavorite: next,
@@ -542,6 +734,15 @@ export default function App() {
         return updated;
       })
     );
+
+    if (currentUser) {
+      try {
+        await updateNote(noteId, { isFavorite: next });
+      } catch (err) {
+        setNotes(prevNotes);
+        addToast(err instanceof Error ? err.message : 'Failed to update note favorite', 'error');
+      }
+    }
   };
 
   const handlePromptDeleteNote = (note: Note) => {
@@ -549,18 +750,32 @@ export default function App() {
     setIsNoteDeleteModalOpen(true);
   };
 
-  const handleConfirmDeleteNote = () => {
+  const handleConfirmDeleteNote = async () => {
     if (!deletingNote) return;
     const title = deletingNote.title;
-    setNotes((prev) => prev.filter((n) => n.id !== deletingNote.id));
+    const noteIdToDelete = deletingNote.id;
 
-    if (detailNote && detailNote.id === deletingNote.id) {
+    const prevNotes = notes;
+    setNotes((prev) => prev.filter((n) => n.id !== noteIdToDelete));
+
+    if (detailNote && detailNote.id === noteIdToDelete) {
       setDetailNote(null);
       setIsNoteDetailModalOpen(false);
     }
 
     setDeletingNote(null);
-    addToast(`Deleted note "${title}"`, 'info');
+
+    if (currentUser) {
+      try {
+        await deleteNote(noteIdToDelete);
+        addToast(`Deleted note "${title}"`, 'info');
+      } catch (err) {
+        setNotes(prevNotes);
+        addToast(err instanceof Error ? err.message : 'Failed to delete note from cloud', 'error');
+      }
+    } else {
+      addToast(`Deleted note "${title}"`, 'info');
+    }
   };
 
   // Category Actions
@@ -584,7 +799,7 @@ export default function App() {
     setIsCategoryDeleteModalOpen(true);
   };
 
-  const handleConfirmDeleteCategory = () => {
+  const handleConfirmDeleteCategory = async () => {
     if (!deletingCategory) return;
     const catToDelete = deletingCategory;
     const catNameLower = catToDelete.name.toLowerCase().trim();
@@ -670,10 +885,20 @@ export default function App() {
 
     setDeletingCategory(null);
     setIsCategoryDeleteModalOpen(false);
-    addToast(`Deleted category "${catToDelete.name}"`, 'info');
+
+    if (currentUser) {
+      try {
+        await deleteCategory(catToDelete.id);
+        addToast(`Deleted category "${catToDelete.name}"`, 'info');
+      } catch (err) {
+        addToast(err instanceof Error ? err.message : 'Failed to delete category from cloud', 'error');
+      }
+    } else {
+      addToast(`Deleted category "${catToDelete.name}"`, 'info');
+    }
   };
 
-  const handleSaveCategory = (categoryData: {
+  const handleSaveCategory = async (categoryData: {
     id?: string;
     name: string;
     color: string;
@@ -694,7 +919,20 @@ export default function App() {
         updatedAt: now,
       };
 
-      setCategories((prev) => prev.map((c) => (c.id === targetId ? updatedCat : c)));
+      if (currentUser) {
+        try {
+          const saved = await updateCategory(targetId, {
+            name: trimmedName,
+            color: categoryData.color,
+          });
+          setCategories((prev) => prev.map((c) => (c.id === targetId ? saved : c)));
+        } catch (err) {
+          addToast(err instanceof Error ? err.message : 'Failed to update category in cloud', 'error');
+          return;
+        }
+      } else {
+        setCategories((prev) => prev.map((c) => (c.id === targetId ? updatedCat : c)));
+      }
 
       // If category name changed, cascade update to associated goals and notes
       if (oldNameLower && oldNameLower !== trimmedName.toLowerCase().trim()) {
@@ -774,16 +1012,29 @@ export default function App() {
 
       addToast(`Updated category "${trimmedName}"`);
     } else {
-      const newCat: Category = {
-        id: 'cat_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
-        name: trimmedName,
-        color: categoryData.color,
-        createdAt: now,
-        updatedAt: now,
-      };
+      if (currentUser) {
+        try {
+          const saved = await createCategory({
+            name: trimmedName,
+            color: categoryData.color,
+          });
+          setCategories((prev) => [saved, ...prev]);
+          addToast(`Created category "${trimmedName}"`);
+        } catch (err) {
+          addToast(err instanceof Error ? err.message : 'Failed to create category in cloud', 'error');
+        }
+      } else {
+        const newCat: Category = {
+          id: 'cat_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+          name: trimmedName,
+          color: categoryData.color,
+          createdAt: now,
+          updatedAt: now,
+        };
 
-      setCategories((prev) => [newCat, ...prev]);
-      addToast(`Created category "${trimmedName}"`);
+        setCategories((prev) => [newCat, ...prev]);
+        addToast(`Created category "${trimmedName}"`);
+      }
     }
   };
 
@@ -923,6 +1174,12 @@ export default function App() {
       currentUser={currentUser}
       onSignOut={handleSignOut}
     >
+      {currentUser && isDataLoading && (
+        <div className="bg-[#FAFAFC] border-b border-[#E8E8EE] px-4 py-2 text-xs text-[#646477] flex items-center justify-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-[#08C83D] animate-ping" />
+          <span>Synchronizing workspace with Supabase cloud...</span>
+        </div>
+      )}
       {currentTab === 'dashboard' ? (
         <DashboardScreen
           goals={goals}
